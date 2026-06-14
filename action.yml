@@ -1,0 +1,49 @@
+name: Synclab Android Release
+description: Internal Synclab Android release framework
+
+inputs:
+  command:
+    description: Command to run: preflight or run
+    required: true
+    default: preflight
+  config-file:
+    description: Release config path in caller repository
+    required: true
+    default: synclab-release.json
+  bump:
+    description: Auto bump level
+    required: false
+    default: d
+  version-name:
+    description: Manual versionName override, format a.b.c.d
+    required: false
+    default: ""
+  dry-run:
+    description: Run without publishing
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Synclab release framework
+      shell: bash
+      run: |
+        PYTHON_BIN="$(command -v python3 || command -v python)"
+        "$PYTHON_BIN" -m pip install "$GITHUB_ACTION_PATH"
+
+    - name: Run Synclab release command
+      shell: bash
+      run: |
+        args=(
+          "${{ inputs.command }}"
+          "--config-file" "${{ inputs.config-file }}"
+          "--bump" "${{ inputs.bump }}"
+        )
+        if [[ -n "${{ inputs.version-name }}" ]]; then
+          args+=("--version-name" "${{ inputs.version-name }}")
+        fi
+        if [[ "${{ inputs.dry-run }}" == "true" ]]; then
+          args+=("--dry-run")
+        fi
+        synclab-release "${args[@]}"

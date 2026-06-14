@@ -1,0 +1,91 @@
+name: Synclab Android Release
+
+on:
+  workflow_call:
+    inputs:
+      configFile:
+        required: false
+        type: string
+        default: synclab-release.json
+      bump:
+        required: false
+        type: string
+        default: d
+      versionName:
+        required: false
+        type: string
+        default: ""
+      dryRun:
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      TS_OAUTH_CLIENT_ID:
+        required: true
+      TS_AUDIENCE:
+        required: true
+      SYNCLAB_SIGNING_URL:
+        required: true
+      SYNCLAB_SIGNING_API_KEY_PREVIEW:
+        required: true
+      SYNCLAB_SIGNING_API_KEY_PROD:
+        required: true
+      RELEASE_GH_TOKEN:
+        required: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Connect Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+          ping: 100.97.227.88
+
+      - name: Verify NAS signing service
+        env:
+          SYNCLAB_SIGNING_URL: ${{ secrets.SYNCLAB_SIGNING_URL }}
+          SYNCLAB_SIGNING_API_KEY_PREVIEW: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PREVIEW }}
+        run: |
+          curl -k --fail --connect-timeout 10 "$SYNCLAB_SIGNING_URL/health"
+          curl -k --fail --connect-timeout 10 \
+            -H "X-Synclab-Api-Key: $SYNCLAB_SIGNING_API_KEY_PREVIEW" \
+            "$SYNCLAB_SIGNING_URL/v1/profiles"
+
+      - name: Run Synclab release
+        uses: Synclab-VN-dev/synclab-release-framework@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
+          SYNCLAB_SIGNING_URL: ${{ secrets.SYNCLAB_SIGNING_URL }}
+          SYNCLAB_SIGNING_API_KEY_PREVIEW: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PREVIEW }}
+          SYNCLAB_SIGNING_API_KEY_PROD: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PROD }}
+        with:
+          command: run
+          config-file: ${{ inputs.configFile }}
+          bump: ${{ inputs.bump }}
+          version-name: ${{ inputs.versionName }}
+          dry-run: ${{ inputs.dryRun }}
