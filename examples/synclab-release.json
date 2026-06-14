@@ -11,7 +11,7 @@
   },
   "signingService": {
     "urlEnv": "SYNCLAB_SIGNING_URL",
-    "requiresTailscale": true,
+    "requiresTailscale": false,
     "tlsVerify": false
   },
   "bundle": {

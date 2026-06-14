@@ -62,7 +62,7 @@ def load_config(path: str | Path) -> ReleaseConfig:
             "signingService",
             {
                 "urlEnv": "SYNCLAB_SIGNING_URL",
-                "requiresTailscale": True,
+                "requiresTailscale": False,
                 "tlsVerify": False,
             },
         ),
@@ -122,7 +122,7 @@ def load_config(path: str | Path) -> ReleaseConfig:
         ),
         signing_service=SigningServiceConfig(
             url_env=_require_str(signing_service_raw.get("urlEnv"), "signingService.urlEnv"),
-            requires_tailscale=bool(signing_service_raw.get("requiresTailscale", True)),
+            requires_tailscale=bool(signing_service_raw.get("requiresTailscale", False)),
             tls_verify=bool(signing_service_raw.get("tlsVerify", False)),
         ),
     )

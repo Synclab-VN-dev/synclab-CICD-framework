@@ -118,8 +118,8 @@ def prepare_stage(
             "targets": plan_targets,
         },
     )
-    print(f"[POC] Prepared {resolved.current.version_name}/{resolved.current.version_code} -> {resolved.next.version_name}/{resolved.next.version_code}")
-    print(f"[POC] Tag: {tag}")
+    print(f"Prepared {resolved.current.version_name}/{resolved.current.version_code} -> {resolved.next.version_name}/{resolved.next.version_code}")
+    print(f"Tag: {tag}")
 
 
 def build_stage(*, repo_root: Path, plan_file: Path, output_dir: Path) -> None:
@@ -140,7 +140,7 @@ def build_stage(*, repo_root: Path, plan_file: Path, output_dir: Path) -> None:
     shutil.copy2(plan_file, output_dir / "release-plan.json")
     _debug_tree(output_dir, output_dir / "unsigned-tree.txt")
     _debug_tree(built_dir, output_dir / "build-artifacts-tree.txt")
-    print(f"[POC] Built unsigned artifacts in {output_dir}")
+    print(f"Built unsigned artifacts in {output_dir}")
 
 
 def sign_stage(
@@ -194,7 +194,7 @@ def sign_stage(
                     "versionCode": str(resolved.next.version_code),
                     "sha": os.getenv("GITHUB_SHA", "local"),
                     "run_id": os.getenv("GITHUB_RUN_ID", "local"),
-                    "poc": "selfhost-signing",
+                    "framework": "synclab-cicd",
                 },
                 apk_path=source,
                 output_path=signed_path,
@@ -208,7 +208,7 @@ def sign_stage(
     shutil.copy2(plan_file, output_dir / "release-plan.json")
     _write_json(output_dir / "signed-manifest.json", manifest)
     _debug_tree(output_dir, output_dir / "signed-tree.txt")
-    print(f"[POC] Signed artifacts in {output_dir}")
+    print(f"Signed artifacts in {output_dir}")
 
 
 def verify_publish_stage(
@@ -239,8 +239,8 @@ def verify_publish_stage(
     release_files.extend(write_release_files(output_dir, config, resolved, final_artifacts))
     shutil.copy2(plan_file, output_dir / "release-plan.json")
     _debug_tree(output_dir, output_dir / "final-tree.txt")
-    print(f"[POC] Verified final artifacts in {output_dir}")
+    print(f"Verified final artifacts in {output_dir}")
     if dry_run:
-        print("[POC] Dry-run enabled; skipping publish")
+        print("Dry-run enabled; skipping publish")
         return
     publish_release(repo_root, config, resolved, release_files)

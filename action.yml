@@ -1,5 +1,5 @@
-name: Synclab Android Release
-description: Internal Synclab Android release framework
+name: Synclab Android CICD
+description: Internal Synclab Android CI/CD framework
 
 inputs:
   command:
