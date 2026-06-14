@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "name": "batmon"
+  },
+  "version": {
+    "source": "gradle",
+    "file": "app/build.gradle",
+    "versionNameScheme": "quad",
+    "versionCodeFormula": "a*100000000+b*1000000+c*10000+d"
+  },
+  "signingService": {
+    "urlEnv": "SYNCLAB_SIGNING_URL",
+    "requiresTailscale": true,
+    "tlsVerify": false
+  },
+  "bundle": {
+    "name": "android_all",
+    "targets": ["debug", "prerelease", "release"]
+  },
+  "targets": {
+    "debug": {
+      "buildCommand": ["./gradlew", "assembleDebug"],
+      "artifactPattern": "app/build/outputs/apk/debug/*.apk",
+      "signing": {
+        "enabled": false
+      },
+      "assetName": "{project}-debug-{versionName}.apk"
+    },
+    "prerelease": {
+      "buildCommand": ["./gradlew", "assemblePrerelease"],
+      "artifactPattern": "app/build/outputs/apk/prerelease/*.apk",
+      "signing": {
+        "enabled": true,
+        "profile": "preview",
+        "expectedSignerDn": "CN=Synclab Android Preview, OU=Synclab Signing, O=Synclab, L=Hanoi, ST=Hanoi, C=VN"
+      },
+      "assetName": "{project}-prerelease-{versionName}.apk"
+    },
+    "release": {
+      "buildCommand": ["./gradlew", "assembleRelease"],
+      "artifactPattern": "app/build/outputs/apk/release/*.apk",
+      "signing": {
+        "enabled": true,
+        "profile": "prod",
+        "expectedSignerDn": "CN=Synclab Android Upload, OU=Synclab Signing, O=Synclab, L=Hanoi, ST=Hanoi, C=VN"
+      },
+      "assetName": "{project}-release-{versionName}.apk"
+    }
+  },
+  "githubRelease": {
+    "tagFormat": "v{versionName}",
+    "nameFormat": "{project} {versionName}",
+    "prerelease": true
+  }
+}
