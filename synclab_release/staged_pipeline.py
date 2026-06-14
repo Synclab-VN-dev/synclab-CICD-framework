@@ -143,7 +143,14 @@ def build_stage(*, repo_root: Path, plan_file: Path, output_dir: Path) -> None:
     print(f"[POC] Built unsigned artifacts in {output_dir}")
 
 
-def sign_stage(*, repo_root: Path, plan_file: Path, unsigned_dir: Path, output_dir: Path) -> None:
+def sign_stage(
+    *,
+    repo_root: Path,
+    plan_file: Path,
+    unsigned_dir: Path,
+    output_dir: Path,
+    require_unsigned_check: bool,
+) -> None:
     plan = _read_json(plan_file)
     config = load_config(repo_root / plan["configFile"])
     resolved = _resolved_from_plan(plan)
@@ -160,7 +167,8 @@ def sign_stage(*, repo_root: Path, plan_file: Path, unsigned_dir: Path, output_d
         if not source.exists():
             raise SignError(f"Unsigned artifact missing for target {name}: {source}")
         if target.signing.enabled:
-            assert_unsigned(repo_root, source)
+            if require_unsigned_check:
+                assert_unsigned(repo_root, source)
             api_key = api_key_for_profile(target.signing.profile or "")
             profiles_body = _http_get_json_or_text(
                 f"{signing_url.rstrip('/')}/v1/profiles",

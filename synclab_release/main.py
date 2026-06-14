@@ -40,6 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
     sign.add_argument("--plan-file", required=True)
     sign.add_argument("--unsigned-dir", required=True)
     sign.add_argument("--output-dir", default="synclab-signed-apks")
+    sign.add_argument(
+        "--require-unsigned-check",
+        action="store_true",
+        help="Require apksigner on the current runner to verify APKs are unsigned before signing.",
+    )
 
     verify = subparsers.add_parser("verify-publish")
     verify.add_argument("--repo-root", default=".")
@@ -80,6 +85,7 @@ def main(argv: list[str] | None = None) -> int:
                 plan_file=Path(args.plan_file).resolve(),
                 unsigned_dir=Path(args.unsigned_dir).resolve(),
                 output_dir=Path(args.output_dir).resolve(),
+                require_unsigned_check=args.require_unsigned_check,
             )
         elif args.command == "verify-publish":
             verify_publish_stage(
