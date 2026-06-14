@@ -2,6 +2,10 @@
 
 Internal Android CI/CD framework for `Synclab-VN-dev`.
 
+Detailed Android release process and `synclab-release.json` contract:
+
+- [Synclab Android Release Process](docs/android-release-process.md)
+
 Client repositories call the reusable workflow:
 
 ```yaml
