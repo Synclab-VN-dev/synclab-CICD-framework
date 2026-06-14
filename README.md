@@ -16,8 +16,16 @@ jobs:
       bump: ${{ inputs.bump }}
       versionName: ${{ inputs.versionName }}
       dryRun: ${{ inputs.dryRun }}
-    secrets: inherit
+    secrets:
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+      SYNCLAB_SIGNING_URL: ${{ secrets.SYNCLAB_SIGNING_URL }}
+      SYNCLAB_SIGNING_API_KEY_PREVIEW: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PREVIEW }}
+      SYNCLAB_SIGNING_API_KEY_PROD: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PROD }}
+      RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
 ```
+
+Configure those values as repository secrets in each Android client repository.
 
 Version names must use `a.b.c.d`. The framework derives `versionCode` with:
 
