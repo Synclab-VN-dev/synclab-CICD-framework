@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from .apk_verifier import verify_signer, verify_version
+from .apk_verifier import assert_unsigned, verify_signer, verify_version
 from .artifact_manager import copy_final_artifact, write_release_files
 from .builder import build_all, clean_artifacts
 from .config_loader import load_config
@@ -43,6 +43,7 @@ def run_release(
         target = config.targets[target_name]
         source = built_artifacts[target_name]
         if target.signing.enabled:
+            assert_unsigned(repo_root, source)
             signed_path = output_dir / f"{target.name}-signed.apk"
             metadata = {
                 "project": config.project_name,

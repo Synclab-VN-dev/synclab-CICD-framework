@@ -43,6 +43,13 @@ def verify_signer(repo_root: Path, apk_path: Path, expected_dn: str | None) -> N
         raise VerifyError(f"{apk_path.name} signer DN mismatch")
 
 
+def assert_unsigned(repo_root: Path, apk_path: Path) -> None:
+    apksigner = _find_tool("apksigner")
+    result = run_command([apksigner, "verify", "--verbose", str(apk_path)], repo_root, check=False)
+    if result.returncode == 0:
+        raise VerifyError(f"{apk_path.name} is already signed; NAS signing targets must provide unsigned APKs")
+
+
 def verify_version(repo_root: Path, apk_path: Path, expected: GradleVersion) -> None:
     try:
         aapt = _find_tool("aapt")
