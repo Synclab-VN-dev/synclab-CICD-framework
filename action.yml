@@ -3,7 +3,7 @@ description: Internal Synclab Android release framework
 
 inputs:
   command:
-    description: Command to run: preflight or run
+    description: "Command to run: preflight, run, prepare, build, sign, or verify-publish"
     required: true
     default: preflight
   config-file:
