@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "synclab-release-framework"
+name = "synclab-cicd-framework"
 version = "0.1.0"
-description = "Synclab internal Android release framework"
+description = "Synclab internal Android CI/CD framework"
 requires-python = ">=3.11"
 readme = "README.md"
 
