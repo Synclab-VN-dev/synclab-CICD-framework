@@ -131,32 +131,6 @@ jobs:
     needs: build
     runs-on: [self-hosted, linux, x64, synclab-signing]
     steps:
-      - name: Checkout caller repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Runner debug
-        run: |
-          set -eux
-          echo "RUNNER_NAME=$RUNNER_NAME"
-          echo "RUNNER_OS=$RUNNER_OS"
-          echo "RUNNER_ARCH=$RUNNER_ARCH"
-          hostname
-          uname -a
-          curl -k -sS https://127.0.0.1:8443/health | tee signing-runner-health.json
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Download release plan
-        uses: actions/download-artifact@v4
-        with:
-          name: release-plan
-          path: synclab-release-plan
-
       - name: Download unsigned APKs
         uses: actions/download-artifact@v4
         with:
@@ -164,21 +138,50 @@ jobs:
           path: synclab-unsigned-apks
 
       - name: Sign APKs on NAS
-        uses: Synclab-VN-dev/synclab-release-framework@codex/selfhost-signing-poc
         env:
           SYNCLAB_SIGNING_API_KEY_PREVIEW: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PREVIEW }}
           SYNCLAB_SIGNING_API_KEY_PROD: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PROD }}
-        with:
-          command: sign
-          dry-run: "true"
-          plan-file: synclab-release-plan/release-plan.json
-          unsigned-dir: synclab-unsigned-apks
-          output-dir: synclab-signed-apks
-
-      - name: Capture signed artifact tree
         run: |
           set -eux
-          find synclab-signed-apks -maxdepth 2 -type f -printf '%p %s bytes\n' | tee synclab-signed-apks/tree-from-workflow.txt
+          mkdir -p synclab-signed-apks
+
+          curl -k -sS https://127.0.0.1:8443/health | tee synclab-signed-apks/signing-health.json
+
+          cp synclab-unsigned-apks/debug.apk synclab-signed-apks/debug.apk
+
+          sign_one() {
+            target="$1"
+            profile="$2"
+            api_key="$3"
+            if [ -z "$api_key" ]; then
+              echo "[SIGN_FAILED] signing API key is required for profile: $profile" >&2
+              exit 1
+            fi
+
+            apk_in="synclab-unsigned-apks/${target}.apk"
+            apk_out="synclab-signed-apks/${target}-signed.apk"
+            [ -f "$apk_in" ] || {
+              echo "[SIGN_FAILED] unsigned APK not found: $apk_in" >&2
+              find synclab-unsigned-apks -maxdepth 2 -type f -printf '%p %s bytes\n' | tee synclab-signed-apks/unsigned-tree.txt
+              exit 1
+            }
+
+            curl -k -sS \
+              -D "synclab-signed-apks/${target}-sign-headers.txt" \
+              -w "\nHTTP_CODE=%{http_code}\n" \
+              -H "X-Synclab-Api-Key: $api_key" \
+              -F "profile=${profile}" \
+              -F "metadata={\"repo\":\"${{ github.repository }}\",\"target\":\"${target}\",\"sha\":\"${{ github.sha }}\",\"run_id\":\"${{ github.run_id }}\",\"poc\":\"selfhost-signing\"}" \
+              -F "apk=@${apk_in};type=application/vnd.android.package-archive" \
+              https://127.0.0.1:8443/v1/sign/android/apk \
+              -o "$apk_out" | tee "synclab-signed-apks/${target}-sign-http-code.txt"
+
+            grep -q "HTTP_CODE=200" "synclab-signed-apks/${target}-sign-http-code.txt"
+          }
+
+          sign_one prerelease preview "$SYNCLAB_SIGNING_API_KEY_PREVIEW"
+          sign_one release prod "$SYNCLAB_SIGNING_API_KEY_PROD"
+          find synclab-signed-apks -maxdepth 1 -type f -printf '%p %s bytes\n' | tee synclab-signed-apks/signed-tree.txt
 
       - name: Upload signed APKs
         uses: actions/upload-artifact@v4
@@ -193,7 +196,6 @@ jobs:
         with:
           name: sign-debug-logs
           path: |
-            signing-runner-health.json
             synclab-signed-apks/*.json
             synclab-signed-apks/*.txt
           if-no-files-found: ignore
