@@ -22,6 +22,22 @@ inputs:
     description: Run without publishing
     required: false
     default: "true"
+  plan-file:
+    description: Release plan path for staged commands
+    required: false
+    default: ""
+  unsigned-dir:
+    description: Unsigned APK artifact directory for sign command
+    required: false
+    default: ""
+  signed-dir:
+    description: Signed APK artifact directory for verify-publish command
+    required: false
+    default: ""
+  output-dir:
+    description: Output directory for staged commands
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -37,13 +53,29 @@ runs:
       run: |
         args=(
           "${{ inputs.command }}"
-          "--config-file" "${{ inputs.config-file }}"
-          "--bump" "${{ inputs.bump }}"
         )
-        if [[ -n "${{ inputs.version-name }}" ]]; then
+        case "${{ inputs.command }}" in
+          preflight|run|prepare)
+            args+=("--config-file" "${{ inputs.config-file }}")
+            args+=("--bump" "${{ inputs.bump }}")
+            ;;
+        esac
+        if [[ -n "${{ inputs.version-name }}" && ( "${{ inputs.command }}" == "preflight" || "${{ inputs.command }}" == "run" || "${{ inputs.command }}" == "prepare" ) ]]; then
           args+=("--version-name" "${{ inputs.version-name }}")
         fi
-        if [[ "${{ inputs.dry-run }}" == "true" ]]; then
+        if [[ "${{ inputs.dry-run }}" == "true" && ( "${{ inputs.command }}" == "preflight" || "${{ inputs.command }}" == "run" || "${{ inputs.command }}" == "prepare" || "${{ inputs.command }}" == "verify-publish" ) ]]; then
           args+=("--dry-run")
+        fi
+        if [[ -n "${{ inputs.plan-file }}" ]]; then
+          args+=("--plan-file" "${{ inputs.plan-file }}")
+        fi
+        if [[ -n "${{ inputs.unsigned-dir }}" ]]; then
+          args+=("--unsigned-dir" "${{ inputs.unsigned-dir }}")
+        fi
+        if [[ -n "${{ inputs.signed-dir }}" ]]; then
+          args+=("--signed-dir" "${{ inputs.signed-dir }}")
+        fi
+        if [[ -n "${{ inputs.output-dir }}" ]]; then
+          args+=("--output-dir" "${{ inputs.output-dir }}")
         fi
         synclab-release "${args[@]}"
