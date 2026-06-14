@@ -40,6 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     sign.add_argument("--plan-file", required=True)
     sign.add_argument("--unsigned-dir", required=True)
     sign.add_argument("--output-dir", default="synclab-signed-apks")
+    sign.add_argument("--targets", help="Optional comma-separated target names for sign command.")
     sign.add_argument(
         "--require-unsigned-check",
         action="store_true",
@@ -86,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
                 unsigned_dir=Path(args.unsigned_dir).resolve(),
                 output_dir=Path(args.output_dir).resolve(),
                 require_unsigned_check=args.require_unsigned_check,
+                targets=[item.strip() for item in args.targets.split(",") if item.strip()] if args.targets else None,
             )
         elif args.command == "verify-publish":
             verify_publish_stage(

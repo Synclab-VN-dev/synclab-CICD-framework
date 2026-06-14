@@ -150,6 +150,7 @@ def sign_stage(
     unsigned_dir: Path,
     output_dir: Path,
     require_unsigned_check: bool,
+    targets: list[str] | None,
 ) -> None:
     plan = _read_json(plan_file)
     config = load_config(repo_root / plan["configFile"])
@@ -160,8 +161,13 @@ def sign_stage(
     health = _http_get_json_or_text(f"{signing_url.rstrip('/')}/health", tls_verify=config.signing_service.tls_verify)
     (output_dir / "signing-health.json").write_text(health + "\n", encoding="utf-8")
 
+    target_names = targets or config.bundle_targets
+    unknown_targets = sorted(set(target_names) - set(config.bundle_targets))
+    if unknown_targets:
+        raise SignError(f"Unknown sign target(s): {', '.join(unknown_targets)}")
+
     manifest = {"versionName": resolved.next.version_name, "versionCode": resolved.next.version_code, "artifacts": []}
-    for name in config.bundle_targets:
+    for name in target_names:
         target = config.targets[name]
         source = unsigned_dir / f"{name}.apk"
         if not source.exists():

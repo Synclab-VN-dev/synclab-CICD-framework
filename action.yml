@@ -38,6 +38,10 @@ inputs:
     description: Output directory for staged commands
     required: false
     default: ""
+  targets:
+    description: Optional comma-separated target names for sign command
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -77,5 +81,8 @@ runs:
         fi
         if [[ -n "${{ inputs.output-dir }}" ]]; then
           args+=("--output-dir" "${{ inputs.output-dir }}")
+        fi
+        if [[ -n "${{ inputs.targets }}" ]]; then
+          args+=("--targets" "${{ inputs.targets }}")
         fi
         synclab-release "${args[@]}"
