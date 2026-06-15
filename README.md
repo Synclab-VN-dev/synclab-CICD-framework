@@ -16,6 +16,7 @@ Framework chịu trách nhiệm:
 - Build các APK target như `debug`, `prerelease`, `release`.
 - Ký APK bằng NAS signing appliance mà không đưa signing key lên GitHub.
 - Verify APK, signer, checksum và publish GitHub Release.
+- Ship một release đã publish từ repo nguồn sang repo đích mà không build/ký lại.
 
 ## Kiến trúc tổng thể
 
@@ -28,6 +29,7 @@ Client Android repo
   -> NAS self-hosted signing job
   -> signed APK artifacts
   -> verify/publish GitHub Release
+  -> optional ship release to another repo
 ```
 
 Các thành phần chính:
@@ -90,3 +92,24 @@ The production workflow uses a NAS self-hosted runner only for signing. The sign
 job does not run Python, checkout source, build Android, or execute the framework
 CLI. It downloads unsigned APK artifacts and calls the local signing appliance at
 `https://127.0.0.1:8443`.
+
+## Ship release
+
+Ship workflow copy một GitHub Release đã publish từ source repo sang target repo.
+Workflow này không build, không ký lại APK và không dùng NAS runner. Nó kiểm tra
+release nguồn, download assets, verify `checksum.sha256`, rồi tạo release tương
+ứng ở repo đích.
+
+```yaml
+jobs:
+  ship:
+    permissions:
+      contents: read
+    uses: Synclab-VN-dev/synclab-CICD-framework/.github/workflows/android-ship-release.yml@v1
+    with:
+      sourceTag: v1.0.0
+      targetRepo: Synclab-VN-dev/batmon-test
+      dryRun: true
+    secrets:
+      RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
+```

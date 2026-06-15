@@ -55,8 +55,11 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--dry-run", action="store_true")
 
     ship = subparsers.add_parser("ship")
-    ship.add_argument("--source-tag", required=False)
-    ship.add_argument("--target-repo", required=False)
+    ship.add_argument("--source-tag", required=True)
+    ship.add_argument("--target-repo", required=True)
+    ship.add_argument("--source-repo")
+    ship.add_argument("--output-dir", default="synclab-ship-artifacts")
+    ship.add_argument("--dry-run", action="store_true")
     return parser
 
 
@@ -64,7 +67,13 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == "ship":
-            ship_release()
+            ship_release(
+                source_tag=args.source_tag,
+                target_repo=args.target_repo,
+                source_repo=args.source_repo or None,
+                output_dir=Path(args.output_dir).resolve(),
+                dry_run=args.dry_run,
+            )
         elif args.command == "prepare":
             prepare_stage(
                 repo_root=Path(args.repo_root).resolve(),

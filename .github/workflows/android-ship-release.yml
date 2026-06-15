@@ -1,0 +1,60 @@
+name: Synclab Android Ship Release
+
+on:
+  workflow_call:
+    inputs:
+      sourceTag:
+        required: true
+        type: string
+      sourceRepo:
+        required: false
+        type: string
+        default: ""
+      targetRepo:
+        required: true
+        type: string
+      dryRun:
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      RELEASE_GH_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Ship release
+        uses: Synclab-VN-dev/synclab-CICD-framework@v1
+        env:
+          RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
+        with:
+          command: ship
+          source-tag: ${{ inputs.sourceTag }}
+          source-repo: ${{ inputs.sourceRepo }}
+          target-repo: ${{ inputs.targetRepo }}
+          dry-run: ${{ inputs.dryRun }}
+          output-dir: synclab-ship-artifacts
+
+      - name: Upload ship debug artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ship-debug-artifacts
+          path: |
+            synclab-ship-artifacts/*.json
+            synclab-ship-artifacts/*.txt
+            synclab-ship-artifacts/*.md
+          if-no-files-found: ignore

@@ -3,7 +3,7 @@ description: Internal Synclab Android CI/CD framework
 
 inputs:
   command:
-    description: "Command to run: preflight, run, prepare, build, sign, or verify-publish"
+    description: "Command to run: preflight, run, prepare, build, sign, verify-publish, or ship"
     required: true
     default: preflight
   config-file:
@@ -42,6 +42,18 @@ inputs:
     description: Optional comma-separated target names for sign command
     required: false
     default: ""
+  source-tag:
+    description: Source GitHub Release tag for ship command
+    required: false
+    default: ""
+  source-repo:
+    description: Optional source repository for ship command, format OWNER/REPO
+    required: false
+    default: ""
+  target-repo:
+    description: Target repository for ship command, format OWNER/REPO
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -67,7 +79,7 @@ runs:
         if [[ -n "${{ inputs.version-name }}" && ( "${{ inputs.command }}" == "preflight" || "${{ inputs.command }}" == "run" || "${{ inputs.command }}" == "prepare" ) ]]; then
           args+=("--version-name" "${{ inputs.version-name }}")
         fi
-        if [[ "${{ inputs.dry-run }}" == "true" && ( "${{ inputs.command }}" == "preflight" || "${{ inputs.command }}" == "run" || "${{ inputs.command }}" == "prepare" || "${{ inputs.command }}" == "verify-publish" ) ]]; then
+        if [[ "${{ inputs.dry-run }}" == "true" && ( "${{ inputs.command }}" == "preflight" || "${{ inputs.command }}" == "run" || "${{ inputs.command }}" == "prepare" || "${{ inputs.command }}" == "verify-publish" || "${{ inputs.command }}" == "ship" ) ]]; then
           args+=("--dry-run")
         fi
         if [[ -n "${{ inputs.plan-file }}" ]]; then
@@ -84,5 +96,14 @@ runs:
         fi
         if [[ -n "${{ inputs.targets }}" ]]; then
           args+=("--targets" "${{ inputs.targets }}")
+        fi
+        if [[ -n "${{ inputs.source-tag }}" ]]; then
+          args+=("--source-tag" "${{ inputs.source-tag }}")
+        fi
+        if [[ -n "${{ inputs.source-repo }}" ]]; then
+          args+=("--source-repo" "${{ inputs.source-repo }}")
+        fi
+        if [[ -n "${{ inputs.target-repo }}" ]]; then
+          args+=("--target-repo" "${{ inputs.target-repo }}")
         fi
         synclab-release "${args[@]}"

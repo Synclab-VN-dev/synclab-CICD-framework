@@ -402,3 +402,57 @@ Production release:
 2. Chạy workflow với `versionName` manual nếu cần chốt version cụ thể, hoặc để trống và dùng `bump`.
 3. Dùng `dryRun=true` trước nếu có thay đổi config/build mới.
 4. Chạy lại với `dryRun=false` để publish.
+
+## 8. Ship release sang repo khác
+
+Ship workflow dùng để copy một release đã publish từ source repo sang target repo.
+Flow này không build lại, không ký lại APK và không dùng NAS self-hosted runner.
+
+Reusable workflow:
+
+```text
+Synclab-VN-dev/synclab-CICD-framework/.github/workflows/android-ship-release.yml@v1
+```
+
+Ví dụ client workflow:
+
+```yaml
+jobs:
+  ship:
+    permissions:
+      contents: read
+    uses: Synclab-VN-dev/synclab-CICD-framework/.github/workflows/android-ship-release.yml@v1
+    with:
+      sourceTag: v1.0.0
+      targetRepo: Synclab-VN-dev/batmon-test
+      dryRun: true
+    secrets:
+      RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
+```
+
+Inputs:
+
+| Input | Required | Default | Ý nghĩa |
+| --- | --- | --- | --- |
+| `sourceTag` | Yes | none | Tag release nguồn cần ship. |
+| `sourceRepo` | No | `github.repository` | Repo nguồn, format `OWNER/REPO`. |
+| `targetRepo` | Yes | none | Repo đích, format `OWNER/REPO`. |
+| `dryRun` | No | `true` | `true` chỉ kiểm tra/download/verify, không tạo release đích. |
+
+Secret:
+
+| Secret | Required | Ý nghĩa |
+| --- | --- | --- |
+| `RELEASE_GH_TOKEN` | Yes | Token có quyền đọc source repo và ghi release vào target repo. |
+
+Ship sẽ fail sớm nếu:
+
+- Thiếu token hoặc repo input không đúng format `OWNER/REPO`.
+- Source release không tồn tại, là draft, hoặc không có asset.
+- Source release thiếu `metadata.json` hoặc `checksum.sha256`.
+- `checksum.sha256` mismatch hoặc trỏ tới path không an toàn.
+- Token không truy cập được target repo.
+- Target release cùng tag đã tồn tại.
+
+Khi `dryRun=false`, workflow tạo release ở target repo với cùng tag, title, body,
+prerelease flag và assets từ source release.
