@@ -49,6 +49,7 @@ jobs:
           repository: Synclab-VN-dev/synclab-CICD-framework
           ref: ${{ steps.framework_ref.outputs.ref }}
           path: .synclab-cicd-framework
+          token: ${{ secrets.RELEASE_GH_TOKEN }}
 
       - name: Ship release
         uses: ./.synclab-cicd-framework
