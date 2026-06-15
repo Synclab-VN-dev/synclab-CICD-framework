@@ -1,13 +1,42 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from synclab_release.apk_verifier import sha256_file
 from synclab_release.errors import ShipError
-from synclab_release.shipper import _require_repo, validate_source_release, verify_checksum_file
+from synclab_release.shipper import (
+    _assert_source_repo_permission,
+    _assert_target_repo_permission,
+    _require_repo,
+    validate_source_release,
+    verify_checksum_file,
+)
 
 
 class ShipperTest(unittest.TestCase):
+    def test_accepts_source_read_permission(self):
+        with patch("synclab_release.shipper._gh_json", return_value={"viewerPermission": "READ"}):
+            permission = _assert_source_repo_permission("owner/repo", cwd=Path("."), token="token")
+
+        self.assertEqual(permission, "READ")
+
+    def test_accepts_target_write_permission(self):
+        with patch("synclab_release.shipper._gh_json", return_value={"viewerPermission": "WRITE"}):
+            permission = _assert_target_repo_permission("owner/repo", cwd=Path("."), token="token")
+
+        self.assertEqual(permission, "WRITE")
+
+    def test_rejects_unknown_source_permission(self):
+        with patch("synclab_release.shipper._gh_json", return_value={"viewerPermission": ""}):
+            with self.assertRaises(ShipError):
+                _assert_source_repo_permission("owner/repo", cwd=Path("."), token="token")
+
+    def test_rejects_target_read_permission(self):
+        with patch("synclab_release.shipper._gh_json", return_value={"viewerPermission": "READ"}):
+            with self.assertRaises(ShipError):
+                _assert_target_repo_permission("owner/read-only", cwd=Path("."), token="token")
+
     def test_requires_owner_repo_format(self):
         self.assertEqual(_require_repo("Synclab-VN-dev/batmon", "target repo"), "Synclab-VN-dev/batmon")
         for value in ("", "batmon", "a/b/c", "/batmon", "Synclab-VN-dev/"):

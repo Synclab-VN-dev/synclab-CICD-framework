@@ -407,6 +407,7 @@ Production release:
 
 Ship workflow dùng để copy một release đã publish từ source repo sang target repo.
 Flow này không build lại, không ký lại APK và không dùng NAS self-hosted runner.
+Source repo và target repo có thể nằm khác org, miễn token có quyền với cả hai repo.
 
 Reusable workflow:
 
@@ -443,11 +444,13 @@ Secret:
 
 | Secret | Required | Ý nghĩa |
 | --- | --- | --- |
-| `RELEASE_GH_TOKEN` | Yes | Token có quyền đọc source repo và ghi release vào target repo. |
+| `RELEASE_GH_TOKEN` | Yes | Token có quyền đọc source repo và quyền ghi release/contents vào target repo. |
 
 Ship sẽ fail sớm nếu:
 
 - Thiếu token hoặc repo input không đúng format `OWNER/REPO`.
+- Token không đọc được source repo.
+- Token không có quyền ghi target repo.
 - Source release không tồn tại, là draft, hoặc không có asset.
 - Source release thiếu `metadata.json` hoặc `checksum.sha256`.
 - `checksum.sha256` mismatch hoặc trỏ tới path không an toàn.

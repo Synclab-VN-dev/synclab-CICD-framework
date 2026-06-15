@@ -40,6 +40,30 @@ def _gh_json(command: list[str], *, cwd: Path, token: str) -> dict[str, Any]:
         raise ShipError(f"Invalid JSON from command: {' '.join(command)}") from exc
 
 
+def _repo_permission(repo: str, *, cwd: Path, token: str) -> str:
+    data = _gh_json(["gh", "repo", "view", repo, "--json", "viewerPermission"], cwd=cwd, token=token)
+    permission = data.get("viewerPermission")
+    if not isinstance(permission, str) or not permission:
+        raise ShipError(f"Cannot determine token permission for repo: {repo}")
+    return permission.upper()
+
+
+def _assert_source_repo_permission(repo: str, *, cwd: Path, token: str) -> str:
+    permission = _repo_permission(repo, cwd=cwd, token=token)
+    allowed = {"READ", "TRIAGE", "WRITE", "MAINTAIN", "ADMIN"}
+    if permission not in allowed:
+        raise ShipError(f"Token must have read access to source repo {repo}; current permission: {permission}")
+    return permission
+
+
+def _assert_target_repo_permission(repo: str, *, cwd: Path, token: str) -> str:
+    permission = _repo_permission(repo, cwd=cwd, token=token)
+    allowed = {"WRITE", "MAINTAIN", "ADMIN"}
+    if permission not in allowed:
+        raise ShipError(f"Token must have write access to target repo {repo}; current permission: {permission}")
+    return permission
+
+
 def _require_repo(value: str, name: str) -> str:
     if not value or "/" not in value or value.count("/") != 1:
         raise ShipError(f"{name} must use OWNER/REPO format")
@@ -156,6 +180,9 @@ def ship_release(
     asset_dir.mkdir(parents=True, exist_ok=True)
 
     cwd = Path.cwd()
+    source_permission = _assert_source_repo_permission(resolved_source_repo, cwd=cwd, token=token)
+    target_permission = _assert_target_repo_permission(resolved_target_repo, cwd=cwd, token=token)
+
     source_release = _gh_json(
         [
             "gh",
@@ -173,15 +200,6 @@ def ship_release(
     _write_json(output_dir / "source-release.json", source_release)
 
     validate_source_release(source_tag, source_release)
-
-    target_result = _run_gh(
-        ["gh", "repo", "view", resolved_target_repo, "--json", "nameWithOwner"],
-        cwd=cwd,
-        token=token,
-        check=False,
-    )
-    if target_result.returncode != 0:
-        raise ShipError(f"Cannot access target repo: {resolved_target_repo}\n{target_result.stdout}")
 
     target_release = _run_gh(
         ["gh", "release", "view", source_tag, "--repo", resolved_target_repo],
@@ -213,6 +231,8 @@ def ship_release(
         "targetRepo": resolved_target_repo,
         "sourceTag": source_tag,
         "dryRun": dry_run,
+        "sourcePermission": source_permission,
+        "targetPermission": target_permission,
         "assetCount": len(asset_paths),
         "verifiedChecksums": verified,
         "assets": [path.name for path in asset_paths],

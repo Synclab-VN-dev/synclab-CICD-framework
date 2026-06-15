@@ -98,7 +98,8 @@ CLI. It downloads unsigned APK artifacts and calls the local signing appliance a
 Ship workflow copy một GitHub Release đã publish từ source repo sang target repo.
 Workflow này không build, không ký lại APK và không dùng NAS runner. Nó kiểm tra
 release nguồn, download assets, verify `checksum.sha256`, rồi tạo release tương
-ứng ở repo đích.
+ứng ở repo đích. Source repo và target repo có thể nằm khác org, miễn
+`RELEASE_GH_TOKEN` có quyền đọc source repo và quyền ghi release vào target repo.
 
 ```yaml
 jobs:
