@@ -17,6 +17,10 @@ on:
         required: false
         type: boolean
         default: true
+      frameworkRef:
+        required: false
+        type: string
+        default: v1
     secrets:
       RELEASE_GH_TOKEN:
         required: true
@@ -36,18 +40,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Resolve framework ref
-        id: framework_ref
-        shell: bash
-        run: |
-          set -eu
-          echo "ref=${GITHUB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout framework action
         uses: actions/checkout@v4
         with:
           repository: Synclab-VN-dev/synclab-CICD-framework
-          ref: ${{ steps.framework_ref.outputs.ref }}
+          ref: ${{ inputs.frameworkRef }}
           path: .synclab-cicd-framework
           token: ${{ secrets.RELEASE_GH_TOKEN }}
 

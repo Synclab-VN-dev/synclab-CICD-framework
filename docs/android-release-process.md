@@ -439,6 +439,7 @@ Inputs:
 | `sourceRepo` | No | `github.repository` | Repo nguồn, format `OWNER/REPO`. |
 | `targetRepo` | Yes | none | Repo đích, format `OWNER/REPO`. |
 | `dryRun` | No | `true` | `true` chỉ kiểm tra/download/verify, không tạo release đích. |
+| `frameworkRef` | No | `v1` | Ref của framework composite action. Chỉ cần override khi test workflow từ branch framework chưa merge. |
 
 Secret:
 
