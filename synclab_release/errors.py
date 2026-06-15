@@ -31,3 +31,7 @@ class VerifyError(SynclabReleaseError):
 
 class PublishError(SynclabReleaseError):
     code = "PUBLISH_FAILED"
+
+
+class ShipError(SynclabReleaseError):
+    code = "SHIP_FAILED"
