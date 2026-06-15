@@ -1,10 +1,10 @@
 # Synclab Android Release Process
 
-Tai lieu nay mo ta cach cac Android client repo cua Synclab goi `synclab-CICD-framework` de build, ky APK bang NAS signing appliance, verify va publish GitHub Release.
+Tài liệu này mô tả cách các Android client repo của Synclab gọi `synclab-CICD-framework` để build, ký APK bằng NAS signing appliance, verify và publish GitHub Release.
 
-## 1. Kien truc release
+## 1. Kiến trúc release
 
-Client repo, vi du `batmon`, khong copy release logic vao repo rieng. Client repo chi khai bao workflow goi reusable workflow cua framework:
+Client repo, ví dụ `batmon`, không copy release logic vào repo riêng. Client repo chỉ khai báo workflow gọi reusable workflow của framework:
 
 ```yaml
 jobs:
@@ -30,14 +30,14 @@ Release flow:
 prepare -> build -> sign -> verify_publish
 ```
 
-- `prepare`: chay tren GitHub-hosted runner, doc `synclab-release.json`, doc version hien tai tu Gradle, tinh version moi, sinh `release-plan.json`.
-- `build`: chay tren GitHub-hosted runner, update version local theo release plan, build cac APK unsigned, upload artifact `unsigned-apks`.
-- `sign`: chay tren NAS self-hosted runner `synclab-signing`, khong checkout source, khong build Android, khong chay Python framework. Job nay chi download unsigned APK va goi local signing service bang shell/curl tai `https://127.0.0.1:8443`.
-- `verify_publish`: chay tren GitHub-hosted runner, verify version/signature, tao checksum/metadata, va publish GitHub Release neu `dryRun=false`.
+- `prepare`: chạy trên GitHub-hosted runner, đọc `synclab-release.json`, đọc version hiện tại từ Gradle, tính version mới, sinh `release-plan.json`.
+- `build`: chạy trên GitHub-hosted runner, update version local theo release plan, build các APK unsigned, upload artifact `unsigned-apks`.
+- `sign`: chạy trên NAS self-hosted runner `synclab-signing`, không checkout source, không build Android, không chạy Python framework. Job này chỉ download unsigned APK và gọi local signing service bằng shell/curl tại `https://127.0.0.1:8443`.
+- `verify_publish`: chạy trên GitHub-hosted runner, verify version/signature, tạo checksum/metadata, và publish GitHub Release nếu `dryRun=false`.
 
-NAS self-hosted runner chi duoc dung cho signing. Khong dua tac vu build, test, publish, Python CLI, hoac Android Gradle build len NAS.
+NAS self-hosted runner chỉ được dùng cho signing. Không đưa tác vụ build, test, publish, Python CLI, hoặc Android Gradle build lên NAS.
 
-## 2. Workflow inputs va secrets
+## 2. Workflow inputs và secrets
 
 Reusable workflow:
 
@@ -47,20 +47,20 @@ Synclab-VN-dev/synclab-CICD-framework/.github/workflows/android-release.yml@v1
 
 Inputs:
 
-| Input | Required | Default | Gia tri hop le | Y nghia |
+| Input | Required | Default | Giá trị hợp lệ | Ý nghĩa |
 | --- | --- | --- | --- | --- |
 | `configFile` | No | `synclab-release.json` | Path file JSON trong client repo | Release contract file. |
-| `bump` | No | `d` | `a`, `b`, `c`, `d` | Auto bump level khi khong truyen `versionName`. |
-| `versionName` | No | empty | Format `a.b.c.d` | Manual version override. Neu co gia tri thi framework khong auto bump. |
-| `dryRun` | No | `true` | `true`, `false` | `true` thi build/sign/verify nhung khong commit, tag, publish release. |
+| `bump` | No | `d` | `a`, `b`, `c`, `d` | Auto bump level khi không truyền `versionName`. |
+| `versionName` | No | empty | Format `a.b.c.d` | Manual version override. Nếu có giá trị thì framework không auto bump. |
+| `dryRun` | No | `true` | `true`, `false` | `true` thì build/sign/verify nhưng không commit, tag, publish release. |
 
-Secrets can khai bao o tung client repo:
+Secrets cần khai báo ở từng client repo:
 
-| Secret | Required | Y nghia |
+| Secret | Required | Ý nghĩa |
 | --- | --- | --- |
-| `SYNCLAB_SIGNING_API_KEY_PREVIEW` | Yes | API key duoc phep ky profile `preview`. |
-| `SYNCLAB_SIGNING_API_KEY_PROD` | Yes | API key duoc phep ky profile `prod`. |
-| `RELEASE_GH_TOKEN` | Optional | Token publish release. Neu khong co, workflow dung `github.token`. |
+| `SYNCLAB_SIGNING_API_KEY_PREVIEW` | Yes | API key được phép ký profile `preview`. |
+| `SYNCLAB_SIGNING_API_KEY_PROD` | Yes | API key được phép ký profile `prod`. |
+| `RELEASE_GH_TOKEN` | Optional | Token publish release. Nếu không có, workflow dùng `github.token`. |
 
 Runner requirement:
 
@@ -68,11 +68,11 @@ Runner requirement:
 runs-on: [self-hosted, linux, x64, synclab-signing]
 ```
 
-Org runner phai duoc allow cho client repo. Neu job `sign` queued lau, thuong la runner offline, label sai, hoac runner group chua allow repo.
+Org runner phải được allow cho client repo. Nếu job `sign` queued lâu, thường là runner offline, label sai, hoặc runner group chưa allow repo.
 
 ## 3. Version rule
 
-Framework chi support version name dang:
+Framework chỉ support version name dạng:
 
 ```text
 a.b.c.d
@@ -85,13 +85,13 @@ Range:
 - `0 <= c <= 99`
 - `0 <= d <= 9999`
 
-Version code duoc tinh tu version name:
+Version code được tính từ version name:
 
 ```text
 versionCode = a * 100000000 + b * 1000000 + c * 10000 + d
 ```
 
-Vi du:
+Ví dụ:
 
 ```text
 10.3.5.6 -> 1003050006
@@ -99,7 +99,7 @@ Vi du:
 
 Auto bump:
 
-| `bump` | Ket qua |
+| `bump` | Kết quả |
 | --- | --- |
 | `d` | `a.b.c.(d+1)` |
 | `c` | `a.b.(c+1).0` |
@@ -108,14 +108,14 @@ Auto bump:
 
 Manual version:
 
-- `versionName` phai dung format `a.b.c.d`.
-- `versionName` moi phai lon hon version hien tai trong Gradle.
-- `versionCode` moi duoc tinh tu `versionName`, khong nhap rieng.
-- Version hien tai trong Gradle phai co `versionCode` khop cong thuc tren, neu khong workflow fail som o `prepare`.
+- `versionName` phải đúng format `a.b.c.d`.
+- `versionName` mới phải lớn hơn version hiện tại trong Gradle.
+- `versionCode` mới được tính từ `versionName`, không nhập riêng.
+- Version hiện tại trong Gradle phải có `versionCode` khớp công thức trên, nếu không workflow fail sớm ở `prepare`.
 
 ## 4. `synclab-release.json` contract
 
-Vi du day du:
+Ví dụ đầy đủ:
 
 ```json
 {
@@ -178,73 +178,73 @@ Vi du day du:
 
 ### Root fields
 
-| Field | Required | Type | Gia tri hop le |
+| Field | Required | Type | Giá trị hợp lệ |
 | --- | --- | --- | --- |
-| `schemaVersion` | Yes | number | Hien tai chi support `1`. |
+| `schemaVersion` | Yes | number | Hiện tại chỉ support `1`. |
 | `project` | Yes | object | Project metadata. |
-| `version` | Yes | object | Noi framework doc va update version. |
-| `signingService` | No | object | Config signing service legacy/CLI. Production reusable workflow dung local endpoint tren NAS. |
-| `bundle` | Yes | object | Nhom target release. |
-| `targets` | Yes | object | Khai bao tung build target. |
-| `githubRelease` | Yes | object | Tag/name/prerelease cua GitHub Release. |
+| `version` | Yes | object | Nơi framework đọc và update version. |
+| `signingService` | No | object | Config signing service legacy/CLI. Production reusable workflow dùng local endpoint trên NAS. |
+| `bundle` | Yes | object | Nhóm target release. |
+| `targets` | Yes | object | Khai báo từng build target. |
+| `githubRelease` | Yes | object | Tag/name/prerelease của GitHub Release. |
 
 ### `project`
 
-| Field | Required | Type | Ghi chu |
+| Field | Required | Type | Ghi chú |
 | --- | --- | --- | --- |
-| `name` | Yes | string | Dung trong asset/release name qua token `{project}`. |
+| `name` | Yes | string | Dùng trong asset/release name qua token `{project}`. |
 
 ### `version`
 
-| Field | Required | Type | Gia tri hop le |
+| Field | Required | Type | Giá trị hợp lệ |
 | --- | --- | --- | --- |
-| `source` | Yes | string | Hien chi support `gradle`. |
-| `file` | Yes | string | Path Gradle file trong client repo, vi du `app/build.gradle`. |
-| `versionNameScheme` | Yes | string | Hien chi support `quad`. |
-| `versionCodeFormula` | Yes | string | Nen khai bao dung `a*100000000+b*1000000+c*10000+d`. |
+| `source` | Yes | string | Hiện chỉ support `gradle`. |
+| `file` | Yes | string | Path Gradle file trong client repo, ví dụ `app/build.gradle`. |
+| `versionNameScheme` | Yes | string | Hiện chỉ support `quad`. |
+| `versionCodeFormula` | Yes | string | Nên khai báo đúng `a*100000000+b*1000000+c*10000+d`. |
 
-Gradle file phai co version hien tai de framework doc va update:
+Gradle file phải có version hiện tại để framework đọc và update:
 
 ```gradle
 versionName "0.0.0.1"
 versionCode 1
 ```
 
-hoac cu phap tuong duong ma parser cua framework dang support trong client repo.
+hoặc cú pháp tương đương mà parser của framework đang support trong client repo.
 
 ### `signingService`
 
-| Field | Required | Type | Default | Ghi chu |
+| Field | Required | Type | Default | Ghi chú |
 | --- | --- | --- | --- | --- |
-| `urlEnv` | No | string | `SYNCLAB_SIGNING_URL` | Dung cho CLI/preflight legacy. |
-| `requiresTailscale` | No | boolean | `false` | Production CI/CD khong dung Tailscale cho signing path. |
-| `tlsVerify` | No | boolean | `false` | Self-signed cert tren NAS nen mac dinh false. |
+| `urlEnv` | No | string | `SYNCLAB_SIGNING_URL` | Dùng cho CLI/preflight legacy. |
+| `requiresTailscale` | No | boolean | `false` | Production CI/CD không dùng Tailscale cho signing path. |
+| `tlsVerify` | No | boolean | `false` | Self-signed cert trên NAS nên mặc định false. |
 
-Trong reusable workflow production, job `sign` goi truc tiep:
+Trong reusable workflow production, job `sign` gọi trực tiếp:
 
 ```text
 https://127.0.0.1:8443
 ```
 
-Endpoint nay chi co y nghia ben trong NAS self-hosted runner container dung host network.
+Endpoint này chỉ có ý nghĩa bên trong NAS self-hosted runner container dùng host network.
 
 ### `bundle`
 
-| Field | Required | Type | Ghi chu |
+| Field | Required | Type | Ghi chú |
 | --- | --- | --- | --- |
-| `name` | Yes | string | Ten bundle de document/debug. |
-| `targets` | Yes | string array | Danh sach target se build/sign/publish. Moi item phai ton tai trong `targets`. |
+| `name` | Yes | string | Tên bundle để document/debug. |
+| `targets` | Yes | string array | Danh sách target sẽ build/sign/publish. Mỗi item phải tồn tại trong `targets`. |
 
 ### `targets.<name>`
 
-| Field | Required | Type | Ghi chu |
+| Field | Required | Type | Ghi chú |
 | --- | --- | --- | --- |
-| `buildCommand` | Yes | string array | Command build chay tren GitHub-hosted runner. |
-| `artifactPattern` | Yes | string | Glob tim APK sau khi build. Phai match dung 1 APK cho target. |
+| `buildCommand` | Yes | string array | Command build chạy trên GitHub-hosted runner. |
+| `artifactPattern` | Yes | string | Glob tìm APK sau khi build. Phải match đúng 1 APK cho target. |
 | `signing` | Yes | object | Signing rule cho target. |
-| `assetName` | Yes | string | Ten GitHub Release asset sau verify. |
+| `assetName` | Yes | string | Tên GitHub Release asset sau verify. |
 
-`assetName` ho tro token:
+`assetName` hỗ trợ token:
 
 ```text
 {project}
@@ -255,19 +255,19 @@ Endpoint nay chi co y nghia ben trong NAS self-hosted runner container dung host
 
 `signing`:
 
-| Field | Required | Type | Gia tri hop le |
+| Field | Required | Type | Giá trị hợp lệ |
 | --- | --- | --- | --- |
-| `enabled` | Yes | boolean | `true` hoac `false`. |
-| `profile` | Required khi `enabled=true` | string | `preview` hoac `prod`. |
-| `expectedSignerDn` | Required khi `enabled=true` | string | DN dung de verify APK da ky. |
+| `enabled` | Yes | boolean | `true` hoặc `false`. |
+| `profile` | Required khi `enabled=true` | string | `preview` hoặc `prod`. |
+| `expectedSignerDn` | Required khi `enabled=true` | string | DN dùng để verify APK đã ký. |
 
-Khuyen nghi target:
+Khuyến nghị target:
 
 - `debug`: `signing.enabled=false`.
 - `prerelease`: `profile=preview`.
 - `release`: `profile=prod`.
 
-Expected signer DN hien tai:
+Expected signer DN hiện tại:
 
 ```text
 preview: CN=Synclab Android Preview, OU=Synclab Signing, O=Synclab, L=Hanoi, ST=Hanoi, C=VN
@@ -276,13 +276,13 @@ prod:    CN=Synclab Android Upload, OU=Synclab Signing, O=Synclab, L=Hanoi, ST=H
 
 ### `githubRelease`
 
-| Field | Required | Type | Ghi chu |
+| Field | Required | Type | Ghi chú |
 | --- | --- | --- | --- |
-| `tagFormat` | Yes | string | Vi du `v{versionName}`. |
-| `nameFormat` | Yes | string | Vi du `{project} {versionName}`. |
-| `prerelease` | No | boolean | `true` tao prerelease, `false` tao release stable. |
+| `tagFormat` | Yes | string | Ví dụ `v{versionName}`. |
+| `nameFormat` | Yes | string | Ví dụ `{project} {versionName}`. |
+| `prerelease` | No | boolean | `true` tạo prerelease, `false` tạo release stable. |
 
-`tagFormat` va `nameFormat` ho tro token:
+`tagFormat` và `nameFormat` hỗ trợ token:
 
 ```text
 {project}
@@ -290,20 +290,20 @@ prod:    CN=Synclab Android Upload, OU=Synclab Signing, O=Synclab, L=Hanoi, ST=H
 {versionCode}
 ```
 
-## 5. Artifacts va output
+## 5. Artifacts và output
 
-Workflow artifact chinh:
+Workflow artifact chính:
 
-| Artifact | Job tao | Noi dung |
+| Artifact | Job tạo | Nội dung |
 | --- | --- | --- |
 | `release-plan` | `prepare` | `release-plan.json`, metadata version/target/release. |
-| `unsigned-apks` | `build` | APK unsigned theo target, vi du `debug.apk`, `prerelease.apk`, `release.apk`. |
-| `build-debug-logs` | `build` | Gradle/build logs de debug. |
+| `unsigned-apks` | `build` | APK unsigned theo target, ví dụ `debug.apk`, `prerelease.apk`, `release.apk`. |
+| `build-debug-logs` | `build` | Gradle/build logs để debug. |
 | `signed-apks` | `sign` | `debug.apk`, `prerelease-signed.apk`, `release-signed.apk`, signing logs. |
 | `sign-debug-logs` | `sign` | Health response, HTTP headers, HTTP code, file tree. |
-| `final-artifacts` | `verify_publish` | APK asset cuoi, `metadata.json`, `checksum.sha256`. |
+| `final-artifacts` | `verify_publish` | APK asset cuối, `metadata.json`, `checksum.sha256`. |
 
-GitHub Release assets mac dinh theo config Batmon:
+GitHub Release assets mặc định theo config Batmon:
 
 ```text
 batmon-debug-{versionName}.apk
@@ -313,17 +313,17 @@ metadata.json
 checksum.sha256
 ```
 
-Khi `dryRun=true`, workflow van build/sign/verify va upload workflow artifacts, nhung khong commit version, khong tao tag, khong publish GitHub Release.
+Khi `dryRun=true`, workflow vẫn build/sign/verify và upload workflow artifacts, nhưng không commit version, không tạo tag, không publish GitHub Release.
 
-Khi `dryRun=false`, job `verify_publish` se:
+Khi `dryRun=false`, job `verify_publish` sẽ:
 
 ```text
 commit version file -> create tag -> push commit/tag -> create GitHub Release -> upload assets
 ```
 
-## 6. Debug va loi thuong gap
+## 6. Debug và lỗi thường gặp
 
-Loi config:
+Lỗi config:
 
 ```text
 [PRE_FLIGHT_FAILED] Config file not found
@@ -332,7 +332,7 @@ Loi config:
 [PRE_FLIGHT_FAILED] bundle target <name> is not declared in targets
 ```
 
-Loi version:
+Lỗi version:
 
 ```text
 [PRE_FLIGHT_FAILED] Version name must use a.b.c.d format
@@ -340,14 +340,14 @@ Loi version:
 [PRE_FLIGHT_FAILED] Next version ... must be greater than current ...
 ```
 
-Loi build:
+Lỗi build:
 
 ```text
 [BUILD_FAILED] Target <name> build command failed
 [BUILD_FAILED] Expected exactly one APK for target <name>
 ```
 
-Loi signing:
+Lỗi signing:
 
 ```text
 [SIGN_FAILED] signing API key is required for profile: preview
@@ -356,12 +356,12 @@ HTTP_CODE=401
 HTTP_CODE=403
 ```
 
-- `401`: secret sai hoac missing.
-- `403`: API key dung nhung khong duoc phep dung profile do.
-- Job queued lau: NAS runner offline, label sai, hoac repo chua duoc allow runner group.
-- Job sign fail health check: signing service tren NAS chua chay hoac runner container khong goi duoc `https://127.0.0.1:8443`.
+- `401`: secret sai hoặc missing.
+- `403`: API key đúng nhưng không được phép dùng profile đó.
+- Job queued lâu: NAS runner offline, label sai, hoặc repo chưa được allow runner group.
+- Job sign fail health check: signing service trên NAS chưa chạy hoặc runner container không gọi được `https://127.0.0.1:8443`.
 
-Loi verify/publish:
+Lỗi verify/publish:
 
 ```text
 [VERIFY_FAILED] signer DN mismatch
@@ -369,7 +369,7 @@ Loi verify/publish:
 [PUBLISH_FAILED] GitHub release already exists
 ```
 
-Neu can debug nhanh, uu tien download cac artifacts:
+Nếu cần debug nhanh, ưu tiên download các artifacts:
 
 ```text
 release-plan
@@ -378,27 +378,27 @@ sign-debug-logs
 final-artifacts
 ```
 
-## 7. Quy trinh test release
+## 7. Quy trình test release
 
-Test lan dau tren client repo:
+Test lần đầu trên client repo:
 
-1. Chay workflow voi `dryRun=true`.
-2. Xac nhan `prepare`, `build`, `sign`, `verify_publish` deu pass.
-3. Xac nhan job `sign` chay tren runner `nas5cb6ad-signing-01` hoac runner Synclab co label `synclab-signing`.
+1. Chạy workflow với `dryRun=true`.
+2. Xác nhận `prepare`, `build`, `sign`, `verify_publish` đều pass.
+3. Xác nhận job `sign` chạy trên runner `nas5cb6ad-signing-01` hoặc runner Synclab có label `synclab-signing`.
 4. Download `final-artifacts`.
 5. Verify `checksum.sha256`.
-6. Verify signer DN cua prerelease/release APK bang `apksigner`.
+6. Verify signer DN của prerelease/release APK bằng `apksigner`.
 
-Test release that:
+Test release thật:
 
-1. Dung tag tam, vi du `cicd-test-v{versionName}`, de tranh trung release production.
-2. Chay workflow voi `dryRun=false`.
-3. Kiem tra GitHub Release, assets, metadata va checksum.
-4. Sau khi review xong thi xoa release/tag/branch test neu do chi la release gia.
+1. Dùng tag tạm, ví dụ `cicd-test-v{versionName}`, để tránh trùng release production.
+2. Chạy workflow với `dryRun=false`.
+3. Kiểm tra GitHub Release, assets, metadata và checksum.
+4. Sau khi review xong thì xóa release/tag/branch test nếu đó chỉ là release giả.
 
 Production release:
 
-1. Dam bao branch/repo da merge config dung.
-2. Chay workflow voi `versionName` manual neu can chot version cu the, hoac de trong va dung `bump`.
-3. Dung `dryRun=true` truoc neu co thay doi config/build moi.
-4. Chay lai voi `dryRun=false` de publish.
+1. Đảm bảo branch/repo đã merge config đúng.
+2. Chạy workflow với `versionName` manual nếu cần chốt version cụ thể, hoặc để trống và dùng `bump`.
+3. Dùng `dryRun=true` trước nếu có thay đổi config/build mới.
+4. Chạy lại với `dryRun=false` để publish.
