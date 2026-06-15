@@ -36,8 +36,22 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Resolve framework ref
+        id: framework_ref
+        shell: bash
+        run: |
+          set -eu
+          echo "ref=${GITHUB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout framework action
+        uses: actions/checkout@v4
+        with:
+          repository: Synclab-VN-dev/synclab-CICD-framework
+          ref: ${{ steps.framework_ref.outputs.ref }}
+          path: .synclab-cicd-framework
+
       - name: Ship release
-        uses: Synclab-VN-dev/synclab-CICD-framework@v1
+        uses: ./.synclab-cicd-framework
         env:
           RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
         with:
