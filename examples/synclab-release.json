@@ -20,7 +20,15 @@
   },
   "targets": {
     "debug": {
-      "buildCommand": ["./gradlew", "assembleDebug"],
+      "buildCommand": [
+        "./gradlew",
+        "assembleDebug",
+        "-PGITHUB_PREVIEW_OWNER={{secret.SYNCLAB_PREVIEW_OWNER}}",
+        "-PGITHUB_PREVIEW_REPO={{secret.SYNCLAB_PREVIEW_REPO}}",
+        "-PGITHUB_PREVIEW_OAUTH_CLIENT_ID={{secret.SYNCLAB_PREVIEW_OAUTH_CLIENT_ID}}",
+        "-PGITHUB_PREVIEW_RELEASE_TAG_PREFIX=preview",
+        "-PGITHUB_PREVIEW_APK_ASSET_PATTERN=.*\\.apk"
+      ],
       "artifactPattern": "app/build/outputs/apk/debug/*.apk",
       "signing": {
         "enabled": false
@@ -28,7 +36,15 @@
       "assetName": "{project}-debug-{versionName}.apk"
     },
     "prerelease": {
-      "buildCommand": ["./gradlew", "assemblePrerelease"],
+      "buildCommand": [
+        "./gradlew",
+        "assemblePrerelease",
+        "-PGITHUB_PREVIEW_OWNER={{secret.SYNCLAB_PREVIEW_OWNER}}",
+        "-PGITHUB_PREVIEW_REPO={{secret.SYNCLAB_PREVIEW_REPO}}",
+        "-PGITHUB_PREVIEW_OAUTH_CLIENT_ID={{secret.SYNCLAB_PREVIEW_OAUTH_CLIENT_ID}}",
+        "-PGITHUB_PREVIEW_RELEASE_TAG_PREFIX=preview",
+        "-PGITHUB_PREVIEW_APK_ASSET_PATTERN=.*\\.apk"
+      ],
       "artifactPattern": "app/build/outputs/apk/prerelease/*.apk",
       "signing": {
         "enabled": true,

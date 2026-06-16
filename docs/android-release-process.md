@@ -60,7 +60,10 @@ Secrets cần khai báo ở từng client repo:
 | --- | --- | --- |
 | `SYNCLAB_SIGNING_API_KEY_PREVIEW` | Yes | API key được phép ký profile `preview`. |
 | `SYNCLAB_SIGNING_API_KEY_PROD` | Yes | API key được phép ký profile `prod`. |
-| `RELEASE_GH_TOKEN` | Optional | Token publish release. Nếu không có, workflow dùng `github.token`. |
+| `RELEASE_GH_TOKEN` | Yes | Token publish release. |
+| `SYNCLAB_PREVIEW_OWNER` | Yes | GitHub owner dùng cho Preview Program của client repo. |
+| `SYNCLAB_PREVIEW_REPO` | Yes | GitHub repo dùng cho Preview Program của client repo. |
+| `SYNCLAB_PREVIEW_OAUTH_CLIENT_ID` | Yes | OAuth client id dùng cho GitHub Preview login. |
 
 Runner requirement:
 
@@ -140,7 +143,15 @@ Ví dụ đầy đủ:
   },
   "targets": {
     "debug": {
-      "buildCommand": ["./gradlew", "assembleDebug"],
+      "buildCommand": [
+        "./gradlew",
+        "assembleDebug",
+        "-PGITHUB_PREVIEW_OWNER={{secret.SYNCLAB_PREVIEW_OWNER}}",
+        "-PGITHUB_PREVIEW_REPO={{secret.SYNCLAB_PREVIEW_REPO}}",
+        "-PGITHUB_PREVIEW_OAUTH_CLIENT_ID={{secret.SYNCLAB_PREVIEW_OAUTH_CLIENT_ID}}",
+        "-PGITHUB_PREVIEW_RELEASE_TAG_PREFIX=preview",
+        "-PGITHUB_PREVIEW_APK_ASSET_PATTERN=.*\\.apk"
+      ],
       "artifactPattern": "app/build/outputs/apk/debug/*.apk",
       "signing": {
         "enabled": false
@@ -148,7 +159,15 @@ Ví dụ đầy đủ:
       "assetName": "{project}-debug-{versionName}.apk"
     },
     "prerelease": {
-      "buildCommand": ["./gradlew", "assemblePrerelease"],
+      "buildCommand": [
+        "./gradlew",
+        "assemblePrerelease",
+        "-PGITHUB_PREVIEW_OWNER={{secret.SYNCLAB_PREVIEW_OWNER}}",
+        "-PGITHUB_PREVIEW_REPO={{secret.SYNCLAB_PREVIEW_REPO}}",
+        "-PGITHUB_PREVIEW_OAUTH_CLIENT_ID={{secret.SYNCLAB_PREVIEW_OAUTH_CLIENT_ID}}",
+        "-PGITHUB_PREVIEW_RELEASE_TAG_PREFIX=preview",
+        "-PGITHUB_PREVIEW_APK_ASSET_PATTERN=.*\\.apk"
+      ],
       "artifactPattern": "app/build/outputs/apk/prerelease/*.apk",
       "signing": {
         "enabled": true,
@@ -239,7 +258,7 @@ Endpoint này chỉ có ý nghĩa bên trong NAS self-hosted runner container d�
 
 | Field | Required | Type | Ghi chú |
 | --- | --- | --- | --- |
-| `buildCommand` | Yes | string array | Command build chạy trên GitHub-hosted runner. |
+| `buildCommand` | Yes | string array | Command build chạy trên GitHub-hosted runner. Hỗ trợ placeholder `{{secret.NAME}}` hoặc `{{env.NAME}}`; placeholder được resolve theo từng target trước khi chạy command. |
 | `artifactPattern` | Yes | string | Glob tìm APK sau khi build. Phải match đúng 1 APK cho target. |
 | `signing` | Yes | object | Signing rule cho target. |
 | `assetName` | Yes | string | Tên GitHub Release asset sau verify. |

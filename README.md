@@ -72,6 +72,9 @@ jobs:
       SYNCLAB_SIGNING_API_KEY_PREVIEW: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PREVIEW }}
       SYNCLAB_SIGNING_API_KEY_PROD: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PROD }}
       RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
+      SYNCLAB_PREVIEW_OWNER: ${{ secrets.SYNCLAB_PREVIEW_OWNER }}
+      SYNCLAB_PREVIEW_REPO: ${{ secrets.SYNCLAB_PREVIEW_REPO }}
+      SYNCLAB_PREVIEW_OAUTH_CLIENT_ID: ${{ secrets.SYNCLAB_PREVIEW_OAUTH_CLIENT_ID }}
 ```
 
 Configure those values as repository secrets in each Android client repository.
