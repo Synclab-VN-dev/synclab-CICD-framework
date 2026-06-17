@@ -19,13 +19,17 @@ on:
         required: false
         type: boolean
         default: true
+      frameworkRef:
+        required: false
+        type: string
+        default: v1
     secrets:
       SYNCLAB_SIGNING_API_KEY_PREVIEW:
         required: true
       SYNCLAB_SIGNING_API_KEY_PROD:
         required: true
       RELEASE_GH_TOKEN:
-        required: false
+        required: true
 
 permissions:
   contents: write
@@ -45,8 +49,18 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Checkout framework action
+        uses: actions/checkout@v4
+        with:
+          repository: Synclab-VN-dev/synclab-CICD-framework
+          ref: ${{ inputs.frameworkRef }}
+          path: .synclab-cicd-framework
+          token: ${{ secrets.RELEASE_GH_TOKEN }}
+
       - name: Prepare release plan
-        uses: Synclab-VN-dev/synclab-CICD-framework@v1
+        uses: ./.synclab-cicd-framework
+        env:
+          SYNCLAB_CICD_SECRETS_JSON: ${{ toJson(secrets) }}
         with:
           command: prepare
           config-file: ${{ inputs.configFile }}
@@ -87,8 +101,18 @@ jobs:
           name: release-plan
           path: synclab-release-plan
 
+      - name: Checkout framework action
+        uses: actions/checkout@v4
+        with:
+          repository: Synclab-VN-dev/synclab-CICD-framework
+          ref: ${{ inputs.frameworkRef }}
+          path: .synclab-cicd-framework
+          token: ${{ secrets.RELEASE_GH_TOKEN }}
+
       - name: Build unsigned APKs
-        uses: Synclab-VN-dev/synclab-CICD-framework@v1
+        uses: ./.synclab-cicd-framework
+        env:
+          SYNCLAB_CICD_SECRETS_JSON: ${{ toJson(secrets) }}
         with:
           command: build
           plan-file: synclab-release-plan/release-plan.json
@@ -209,6 +233,14 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Checkout framework action
+        uses: actions/checkout@v4
+        with:
+          repository: Synclab-VN-dev/synclab-CICD-framework
+          ref: ${{ inputs.frameworkRef }}
+          path: .synclab-cicd-framework
+          token: ${{ secrets.RELEASE_GH_TOKEN }}
+
       - name: Download release plan
         uses: actions/download-artifact@v4
         with:
@@ -222,7 +254,7 @@ jobs:
           path: synclab-signed-apks
 
       - name: Verify and publish release
-        uses: Synclab-VN-dev/synclab-CICD-framework@v1
+        uses: ./.synclab-cicd-framework
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}

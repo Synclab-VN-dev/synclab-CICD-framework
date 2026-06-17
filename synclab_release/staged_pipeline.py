@@ -8,7 +8,7 @@ from typing import Any
 
 from .apk_verifier import assert_unsigned, verify_signer, verify_version
 from .artifact_manager import copy_final_artifact, render_name, write_release_files
-from .builder import build_all, clean_artifacts
+from .builder import build_all, clean_artifacts, validate_build_placeholders
 from .config_loader import load_config
 from .errors import BuildError, PreflightError, SignError, VerifyError
 from .gradle_version import read_gradle_version, write_gradle_version
@@ -75,6 +75,10 @@ def prepare_stage(
     current = read_gradle_version(repo_root / config.version.file)
     resolved = resolve_version(current, bump, version_name)
     tag = _tag_for(config, resolved.next.version_name)
+    try:
+        validate_build_placeholders([config.targets[name] for name in config.bundle_targets])
+    except BuildError as exc:
+        raise PreflightError(exc.message) from exc
 
     if not dry_run:
         import subprocess
