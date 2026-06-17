@@ -30,12 +30,6 @@ on:
         required: true
       RELEASE_GH_TOKEN:
         required: true
-      SYNCLAB_PREVIEW_OWNER:
-        required: true
-      SYNCLAB_PREVIEW_REPO:
-        required: true
-      SYNCLAB_PREVIEW_OAUTH_CLIENT_ID:
-        required: true
 
 permissions:
   contents: write
@@ -65,6 +59,8 @@ jobs:
 
       - name: Prepare release plan
         uses: ./.synclab-cicd-framework
+        env:
+          SYNCLAB_CICD_SECRETS_JSON: ${{ toJson(secrets) }}
         with:
           command: prepare
           config-file: ${{ inputs.configFile }}
@@ -116,9 +112,7 @@ jobs:
       - name: Build unsigned APKs
         uses: ./.synclab-cicd-framework
         env:
-          SYNCLAB_PREVIEW_OWNER: ${{ secrets.SYNCLAB_PREVIEW_OWNER }}
-          SYNCLAB_PREVIEW_REPO: ${{ secrets.SYNCLAB_PREVIEW_REPO }}
-          SYNCLAB_PREVIEW_OAUTH_CLIENT_ID: ${{ secrets.SYNCLAB_PREVIEW_OAUTH_CLIENT_ID }}
+          SYNCLAB_CICD_SECRETS_JSON: ${{ toJson(secrets) }}
         with:
           command: build
           plan-file: synclab-release-plan/release-plan.json

@@ -7,8 +7,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from .builder import validate_build_placeholders
 from .command import run_command
-from .errors import PreflightError
+from .errors import BuildError, PreflightError
 from .models import ReleaseConfig, ResolvedVersion
 
 
@@ -25,6 +26,11 @@ def _http_get_json_or_text(url: str, headers: dict[str, str] | None = None, tls_
 
 
 def run_preflight(repo_root: Path, config: ReleaseConfig, resolved: ResolvedVersion, dry_run: bool) -> None:
+    try:
+        validate_build_placeholders([config.targets[name] for name in config.bundle_targets])
+    except BuildError as exc:
+        raise PreflightError(exc.message) from exc
+
     gradlew = repo_root / "gradlew"
     if not gradlew.exists():
         raise PreflightError("Gradle wrapper not found")

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from synclab_release.builder import build_all, resolve_build_command
+from synclab_release.builder import SECRETS_JSON_ENV, build_all, resolve_build_command
 from synclab_release.errors import BuildError
 from synclab_release.models import (
     GitHubReleaseConfig,
@@ -27,7 +27,16 @@ def _target(name: str, command: list[str]) -> TargetConfig:
 
 
 class BuilderTest(unittest.TestCase):
-    def test_resolves_secret_placeholder_in_build_command(self):
+    def test_resolves_secret_placeholder_from_secrets_json(self):
+        target = _target("debug", ["./gradlew", "assembleDebug", "-Ptoken={{secret.TEST_SECRET}}"])
+
+        with patch.dict(os.environ, {SECRETS_JSON_ENV: '{"TEST_SECRET":"secret-value"}'}, clear=True):
+            self.assertEqual(
+                resolve_build_command(target),
+                ["./gradlew", "assembleDebug", "-Ptoken=secret-value"],
+            )
+
+    def test_resolves_secret_placeholder_from_env_for_local_cli(self):
         target = _target("debug", ["./gradlew", "assembleDebug", "-Ptoken={{secret.TEST_SECRET}}"])
 
         with patch.dict(os.environ, {"TEST_SECRET": "secret-value"}, clear=True):
@@ -45,6 +54,15 @@ class BuilderTest(unittest.TestCase):
 
         self.assertIn("Missing build secret for target prerelease: TEST_SECRET", raised.exception.message)
 
+    def test_rejects_invalid_secrets_json(self):
+        target = _target("debug", ["./gradlew", "assembleDebug", "-Ptoken={{secret.TEST_SECRET}}"])
+
+        with patch.dict(os.environ, {SECRETS_JSON_ENV: "not-json"}, clear=True):
+            with self.assertRaises(BuildError) as raised:
+                resolve_build_command(target)
+
+        self.assertIn(f"Invalid {SECRETS_JSON_ENV}", raised.exception.message)
+
     def test_build_all_strips_managed_secret_env_from_child_process(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -58,10 +76,12 @@ shift
 if [ "$target" = "assembleDebug" ]; then
   printf '%s\n' "$*" > outputs/debug.args
   [ "${TEST_SECRET:-}" = "" ] || exit 11
+  [ "${SYNCLAB_CICD_SECRETS_JSON:-}" = "" ] || exit 14
   touch outputs/debug.apk
 elif [ "$target" = "assembleRelease" ]; then
   printf '%s\n' "$*" > outputs/release.args
   [ "${TEST_SECRET:-}" = "" ] || exit 12
+  [ "${SYNCLAB_CICD_SECRETS_JSON:-}" = "" ] || exit 15
   touch outputs/release.apk
 else
   exit 13
@@ -81,7 +101,7 @@ fi
                 signing_service=SigningServiceConfig("SYNCLAB_SIGNING_URL", False, False),
             )
 
-            with patch.dict(os.environ, {"TEST_SECRET": "secret-value"}, clear=True):
+            with patch.dict(os.environ, {SECRETS_JSON_ENV: '{"TEST_SECRET":"secret-value"}'}, clear=True):
                 artifacts = build_all(root, config)
 
             self.assertEqual(artifacts["debug"], root / "outputs/debug.apk")

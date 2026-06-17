@@ -18,10 +18,7 @@ jobs:
       bump: ${{ inputs.bump }}
       versionName: ${{ inputs.versionName }}
       dryRun: ${{ inputs.dryRun }}
-    secrets:
-      SYNCLAB_SIGNING_API_KEY_PREVIEW: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PREVIEW }}
-      SYNCLAB_SIGNING_API_KEY_PROD: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PROD }}
-      RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
+    secrets: inherit
 ```
 
 Release flow:
@@ -54,16 +51,25 @@ Inputs:
 | `versionName` | No | empty | Format `a.b.c.d` | Manual version override. Nếu có giá trị thì framework không auto bump. |
 | `dryRun` | No | `true` | `true`, `false` | `true` thì build/sign/verify nhưng không commit, tag, publish release. |
 
-Secrets cần khai báo ở từng client repo:
+Secrets cần khai báo ở từng client repo và truyền qua `secrets: inherit`:
 
 | Secret | Required | Ý nghĩa |
 | --- | --- | --- |
 | `SYNCLAB_SIGNING_API_KEY_PREVIEW` | Yes | API key được phép ký profile `preview`. |
 | `SYNCLAB_SIGNING_API_KEY_PROD` | Yes | API key được phép ký profile `prod`. |
 | `RELEASE_GH_TOKEN` | Yes | Token publish release. |
+
+Các secret khác là build-command secret do client tự định nghĩa trong
+`synclab-release.json` bằng placeholder `{{secret.NAME}}`. Ví dụ Batmon dùng:
+
+| Secret | Required khi config có dùng | Ý nghĩa |
+| --- | --- | --- |
 | `SYNCLAB_PREVIEW_OWNER` | Yes | GitHub owner dùng cho Preview Program của client repo. |
 | `SYNCLAB_PREVIEW_REPO` | Yes | GitHub repo dùng cho Preview Program của client repo. |
 | `SYNCLAB_PREVIEW_OAUTH_CLIENT_ID` | Yes | OAuth client id dùng cho GitHub Preview login. |
+
+Khi client thêm secret mới cho build, chỉ cần thêm repo secret và tham chiếu
+`{{secret.NEW_SECRET}}` trong target `buildCommand`; không cần sửa framework.
 
 Runner requirement:
 
