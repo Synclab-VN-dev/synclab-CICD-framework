@@ -22,7 +22,7 @@ on:
       frameworkRef:
         required: false
         type: string
-        default: v1
+        default: v1.0.1
     secrets:
       SYNCLAB_SIGNING_API_KEY_PREVIEW:
         required: true
@@ -34,6 +34,7 @@ on:
 permissions:
   contents: write
   actions: read
+  packages: read
 
 jobs:
   prepare:
