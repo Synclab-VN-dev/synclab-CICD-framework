@@ -22,7 +22,7 @@ on:
       frameworkRef:
         required: false
         type: string
-        default: v1.0.1
+        default: v1.0.2
     secrets:
       SYNCLAB_SIGNING_API_KEY_PREVIEW:
         required: true
@@ -193,6 +193,7 @@ jobs:
             grep -q "HTTP_CODE=200" "synclab-signed-apks/${target}-sign-http-code.txt"
           }
 
+          sign_one debug preview "$SYNCLAB_SIGNING_API_KEY_PREVIEW"
           sign_one prerelease preview "$SYNCLAB_SIGNING_API_KEY_PREVIEW"
           sign_one release prod "$SYNCLAB_SIGNING_API_KEY_PROD"
           find synclab-signed-apks -maxdepth 1 -type f -printf '%p %s bytes\n' | tee synclab-signed-apks/signed-tree.txt
