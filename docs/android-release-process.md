@@ -433,6 +433,7 @@ Production release:
 Ship workflow dùng để copy một release đã publish từ source repo sang target repo.
 Flow này không build lại, không ký lại APK và không dùng NAS self-hosted runner.
 Source repo và target repo có thể nằm khác org, miễn token có quyền với cả hai repo.
+Token phải có quyền direct push vào default branch của target repo để ghi ship history.
 
 Reusable workflow:
 
@@ -470,13 +471,13 @@ Secret:
 
 | Secret | Required | Ý nghĩa |
 | --- | --- | --- |
-| `RELEASE_GH_TOKEN` | Yes | Token có quyền đọc source repo và quyền ghi release/contents vào target repo. |
+| `RELEASE_GH_TOKEN` | Yes | Token có quyền đọc source repo, ghi release/contents và direct push vào default branch target repo. |
 
 Ship sẽ fail sớm nếu:
 
 - Thiếu token hoặc repo input không đúng format `OWNER/REPO`.
 - Token không đọc được source repo.
-- Token không có quyền ghi target repo.
+- Token không có quyền ghi target repo hoặc không push trực tiếp được vào default branch target repo.
 - Source release không tồn tại, là draft, hoặc không có asset.
 - Source release thiếu `metadata.json` hoặc `checksum.sha256`.
 - `checksum.sha256` mismatch hoặc trỏ tới path không an toàn.
@@ -484,4 +485,7 @@ Ship sẽ fail sớm nếu:
 - Target release cùng tag đã tồn tại.
 
 Khi `dryRun=false`, workflow tạo release ở target repo với cùng tag, title, body,
-prerelease flag và assets từ source release.
+prerelease flag và assets từ source release. Sau khi publish release thành công,
+workflow commit ship history vào `.synclab/ship-history/<sourceTag>/` trong target repo.
+History gồm manifest, source release JSON, release notes, asset tree và `metadata.json`;
+workflow không commit APK vào repo đích.

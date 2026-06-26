@@ -98,7 +98,10 @@ Ship workflow copy một GitHub Release đã publish từ source repo sang targe
 Workflow này không build, không ký lại APK và không dùng NAS runner. Nó kiểm tra
 release nguồn, download assets, verify `checksum.sha256`, rồi tạo release tương
 ứng ở repo đích. Source repo và target repo có thể nằm khác org, miễn
-`RELEASE_GH_TOKEN` có quyền đọc source repo và quyền ghi release vào target repo.
+`RELEASE_GH_TOKEN` có quyền đọc source repo, quyền ghi release vào target repo,
+và quyền direct push vào default branch của target repo để lưu ship history.
+Sau khi ship thành công, workflow commit history vào
+`.synclab/ship-history/<sourceTag>/` trong target repo.
 
 ```yaml
 jobs:
