@@ -15,7 +15,12 @@ from .models import ReleaseConfig, ResolvedVersion
 
 def _http_get_json_or_text(url: str, headers: dict[str, str] | None = None, tls_verify: bool = True) -> str:
     context = None if tls_verify else ssl._create_unverified_context()
-    request = urllib.request.Request(url, headers=headers or {})
+    request_headers = {
+        "User-Agent": "Synclab-CICD/1.0",
+        "Accept": "application/json",
+    }
+    request_headers.update(headers or {})
+    request = urllib.request.Request(url, headers=request_headers)
     try:
         with urllib.request.urlopen(request, timeout=15, context=context) as response:
             return response.read().decode("utf-8", errors="replace")
