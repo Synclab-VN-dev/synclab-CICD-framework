@@ -167,16 +167,6 @@ def sign_stage(
     if unknown_targets:
         raise SignError(f"Unknown sign target(s): {', '.join(unknown_targets)}")
 
-    signing_targets = [config.targets[name] for name in target_names if config.targets[name].signing.enabled]
-    if signing_targets:
-        health_api_key = api_key_for_profile(signing_targets[0].signing.profile or "")
-        health = _http_get_json_or_text(
-            f"{signing_url.rstrip('/')}/health",
-            headers={"X-Synclab-Api-Key": health_api_key},
-            tls_verify=config.signing_service.tls_verify,
-        )
-        (output_dir / "signing-health.json").write_text(health + "\n", encoding="utf-8")
-
     manifest = {"versionName": resolved.next.version_name, "versionCode": resolved.next.version_code, "artifacts": []}
     for name in target_names:
         target = config.targets[name]
