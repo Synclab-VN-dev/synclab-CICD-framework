@@ -14,7 +14,7 @@ Framework chịu trách nhiệm:
 - Đọc release contract từ `synclab-release.json`.
 - Tính version mới theo chuẩn `a.b.c.d` và tự derive `versionCode`.
 - Build các APK target như `debug`, `prerelease`, `release`.
-- Ký APK bằng NAS signing appliance mà không đưa signing key lên GitHub.
+- Ký APK bằng Synclab signing service qua NAS self-hosted runner hoặc public API mà không đưa signing key lên GitHub.
 - Verify APK, signer, checksum và publish GitHub Release.
 - Ship một release đã publish từ repo nguồn sang repo đích mà không build/ký lại.
 
@@ -26,7 +26,9 @@ Client Android repo
   -> composite action: action.yml
   -> Python CLI/package: synclab_release/
   -> unsigned APK artifacts
-  -> NAS self-hosted signing job
+  -> signing job
+       -> self-hosted: NAS runner -> https://127.0.0.1:8443
+       -> public-api: ubuntu-latest -> https://sign.synclab.com.vn
   -> signed APK artifacts
   -> verify/publish GitHub Release
   -> optional ship release to another repo
@@ -38,14 +40,14 @@ Các thành phần chính:
 - **Reusable workflow**: chia release thành các job `prepare`, `build`, `sign`, `verify_publish`.
 - **Composite action**: cài Python package từ repo này và gọi CLI `synclab-release`.
 - **Python package**: xử lý config, version, build, artifact, verify và publish.
-- **NAS self-hosted runner**: chỉ chạy job `sign`, download unsigned APK và gọi signing service local bằng shell/curl.
-- **NAS signing service**: giữ signing key, ký APK bằng profile `preview` hoặc `prod`, rồi trả signed APK.
+- **Signing job**: hỗ trợ `self-hosted` (NAS runner + local signing service) và `public-api` (GitHub-hosted runner + public signing endpoint).
+- **Synclab signing service**: giữ signing key, ký APK bằng profile `preview` hoặc `prod`, rồi trả signed APK.
 
 Ranh giới quan trọng:
 
-- GitHub-hosted runner chạy `prepare`, `build`, `verify_publish`.
-- NAS self-hosted runner chỉ dùng cho signing.
-- Không chạy Python framework, Gradle build, test hoặc publish trên NAS.
+- GitHub-hosted runner luôn chạy `prepare`, `build`, `verify_publish`; với `public-api`, job `sign` cũng chạy trên GitHub-hosted runner.
+- Với mode mặc định `self-hosted`, NAS self-hosted runner chỉ dùng cho signing.
+- Không chạy Gradle build, test hoặc publish trên NAS.
 - Client repo không copy release logic, chỉ cấu hình contract.
 
 ## Tài liệu chi tiết
@@ -68,6 +70,9 @@ jobs:
       bump: ${{ inputs.bump }}
       versionName: ${{ inputs.versionName }}
       dryRun: ${{ inputs.dryRun }}
+      # Optional. Default: self-hosted
+      # signingMode: public-api
+      # signingUrl: https://sign.synclab.com.vn
     secrets: inherit
 ```
 
@@ -85,12 +90,28 @@ versionCode = a * 100000000 + b * 1000000 + c * 10000 + d
 
 Example: `10.3.5.6 -> 1003050006`.
 
-## Signing boundary
+## Signing modes
 
-The production workflow uses a NAS self-hosted runner only for signing. The signing
-job does not run Python, checkout source, build Android, or execute the framework
-CLI. It downloads unsigned APK artifacts and calls the local signing appliance at
-`https://127.0.0.1:8443`.
+Reusable Android release workflow hỗ trợ hai mode:
+
+- `self-hosted` (mặc định): giữ nguyên flow hiện tại, job `sign` chạy trên NAS self-hosted runner và gọi `https://127.0.0.1:8443`.
+- `public-api`: job `sign` chạy trên `ubuntu-latest`, reuse composite action `command: sign` và gọi endpoint truyền qua `signingUrl` (mặc định `https://sign.synclab.com.vn`).
+
+Ví dụ caller ngoài Synclab organization:
+
+```yaml
+jobs:
+  release:
+    uses: Synclab-VN-dev/synclab-CICD-framework/.github/workflows/android-release.yml@v1
+    with:
+      configFile: synclab-release.json
+      signingMode: public-api
+      signingUrl: https://sign.synclab.com.vn
+      dryRun: true
+    secrets: inherit
+```
+
+`synclab-release.json` của caller vẫn quyết định `tlsVerify` và profile signing.
 
 ## Ship release
 
