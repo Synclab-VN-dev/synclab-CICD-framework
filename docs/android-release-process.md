@@ -76,7 +76,7 @@ Khi client thêm secret mới cho build, chỉ cần thêm repo secret và tham 
 Runner requirement:
 
 - `self-hosted`: dùng `[self-hosted, linux, x64, synclab-signing]`. Org runner phải được allow cho caller repo.
-- `public-api`: dùng GitHub-hosted `ubuntu-latest`; phù hợp cho caller repo bên ngoài Synclab organization không có quyền dùng shared signing runner.
+- `public-api`: dùng GitHub-hosted `ubuntu-latest`; phù hợp cho caller repo có quyền truy cập framework nhưng không có hoặc không muốn phụ thuộc shared signing runner.
 
 Ví dụ public signing:
 
@@ -89,8 +89,13 @@ jobs:
       signingMode: public-api
       signingUrl: https://sign.synclab.com.vn
       dryRun: true
-    secrets: inherit
+    secrets:
+      SYNCLAB_SIGNING_API_KEY_PREVIEW: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PREVIEW }}
+      SYNCLAB_SIGNING_API_KEY_PROD: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PROD }}
+      RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
 ```
+
+Public signing mode không thay đổi GitHub repository access policy. Caller vẫn phải có quyền truy cập repository chứa reusable workflow.
 
 Với `public-api`, caller vẫn cấu hình `signingService.tlsVerify` trong `synclab-release.json` và dùng các secret `SYNCLAB_SIGNING_API_KEY_PREVIEW/PROD` như hiện tại.
 
