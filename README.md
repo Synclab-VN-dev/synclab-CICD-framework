@@ -97,7 +97,7 @@ Reusable Android release workflow hỗ trợ hai mode:
 - `self-hosted` (mặc định): giữ nguyên flow hiện tại, job `sign` chạy trên NAS self-hosted runner và gọi `https://127.0.0.1:8443`.
 - `public-api`: job `sign` chạy trên `ubuntu-latest`, reuse composite action `command: sign` và gọi endpoint truyền qua `signingUrl` (mặc định `https://sign.synclab.com.vn`).
 
-Ví dụ caller ngoài Synclab organization:
+Ví dụ caller sử dụng public API signing:
 
 ```yaml
 jobs:
