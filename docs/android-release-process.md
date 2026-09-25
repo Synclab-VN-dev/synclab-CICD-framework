@@ -1,6 +1,6 @@
 # Synclab Android Release Process
 
-Tài liệu này mô tả cách các Android client repo gọi `synclab-CICD-framework` để build, ký APK qua Synclab signing service, verify và publish GitHub Release.
+Tài liệu này mô tả cách các Android client repo gọi `synclab-CICD-framework` để build, ký Android artifact (APK/AAB) qua Synclab signing service, verify và publish GitHub Release.
 
 ## 1. Kiến trúc release
 
@@ -28,7 +28,7 @@ prepare -> build -> sign -> verify_publish
 ```
 
 - `prepare`: chạy trên GitHub-hosted runner, đọc `synclab-release.json`, đọc version hiện tại từ Gradle, tính version mới, sinh `release-plan.json`.
-- `build`: chạy trên GitHub-hosted runner, update version local theo release plan, build các APK unsigned, upload artifact `unsigned-apks`.
+- `build`: chạy trên GitHub-hosted runner, update version local theo release plan, build Android artifacts theo `artifactType` (`apk` hoặc `aab`), upload artifact trung gian.
 - `sign`: hỗ trợ hai mode. `self-hosted` chạy trên NAS runner `synclab-signing` và gọi local signing service tại `https://127.0.0.1:8443`; `public-api` chạy trên `ubuntu-latest`, reuse framework `command: sign` và gọi endpoint public được cấu hình qua `signingUrl`.
 - `verify_publish`: chạy trên GitHub-hosted runner, verify version/signature, tạo checksum/metadata, và publish GitHub Release nếu `dryRun=false`.
 
@@ -284,8 +284,9 @@ Endpoint này chỉ có ý nghĩa bên trong NAS self-hosted runner container d�
 
 | Field | Required | Type | Ghi chú |
 | --- | --- | --- | --- |
+| `artifactType` | No | string | `apk` (mặc định) hoặc `aab`. |
 | `buildCommand` | Yes | string array | Command build chạy trên GitHub-hosted runner. Hỗ trợ placeholder `{{secret.NAME}}` hoặc `{{env.NAME}}`; placeholder được resolve theo từng target trước khi chạy command. |
-| `artifactPattern` | Yes | string | Glob tìm APK sau khi build. Phải match đúng 1 APK cho target. |
+| `artifactPattern` | Yes | string | Glob tìm artifact sau khi build. Phải match đúng 1 file cho target. |
 | `signing` | Yes | object | Signing rule cho target. |
 | `assetName` | Yes | string | Tên GitHub Release asset sau verify. |
 
@@ -304,7 +305,7 @@ Endpoint này chỉ có ý nghĩa bên trong NAS self-hosted runner container d�
 | --- | --- | --- | --- |
 | `enabled` | Yes | boolean | `true` hoặc `false`. |
 | `profile` | Required khi `enabled=true` | string | `preview` hoặc `prod`. |
-| `expectedSignerDn` | Required khi `enabled=true` | string | DN dùng để verify APK đã ký. |
+| `expectedSignerDn` | Required khi `enabled=true` | string | DN dùng để verify artifact đã ký. APK dùng `apksigner`, AAB dùng `jarsigner`. |
 
 Khuyến nghị target:
 
@@ -342,11 +343,11 @@ Workflow artifact chính:
 | Artifact | Job tạo | Nội dung |
 | --- | --- | --- |
 | `release-plan` | `prepare` | `release-plan.json`, metadata version/target/release. |
-| `unsigned-apks` | `build` | APK unsigned theo target, ví dụ `debug.apk`, `prerelease.apk`, `release.apk`. |
+| `unsigned-apks` | `build` | Android artifact unsigned theo target; tên artifact workflow giữ nguyên để backward-compatible, nội dung có thể là `.apk` hoặc `.aab`. |
 | `build-debug-logs` | `build` | Gradle/build logs để debug. |
-| `signed-apks` | `sign` | `debug.apk`, `prerelease-signed.apk`, `release-signed.apk`, signing logs. |
+| `signed-apks` | `sign` | Signed Android artifacts (`*.apk`/`*.aab`) và signing logs; tên workflow artifact giữ nguyên để backward-compatible. |
 | `sign-debug-logs` | `sign` | Health response, HTTP headers, HTTP code, file tree. |
-| `final-artifacts` | `verify_publish` | APK asset cuối, `metadata.json`, `checksum.sha256`. |
+| `final-artifacts` | `verify_publish` | Android release assets cuối (APK/AAB), `metadata.json`, `checksum.sha256`. |
 
 GitHub Release assets mặc định theo config Batmon:
 
