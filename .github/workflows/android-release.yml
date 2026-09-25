@@ -33,11 +33,9 @@ on:
         default: https://sign.synclab.com.vn
     secrets:
       SYNCLAB_SIGNING_API_KEY_PREVIEW:
-        required: true
+        required: false
       SYNCLAB_SIGNING_API_KEY_PROD:
-        required: true
-      RELEASE_GH_TOKEN:
-        required: true
+        required: false
 
 permissions:
   contents: write
@@ -76,7 +74,6 @@ jobs:
           repository: Synclab-VN-dev/synclab-CICD-framework
           ref: ${{ inputs.frameworkRef }}
           path: .synclab-cicd-framework
-          token: ${{ secrets.RELEASE_GH_TOKEN }}
 
       - name: Prepare release plan
         uses: ./.synclab-cicd-framework
@@ -128,7 +125,6 @@ jobs:
           repository: Synclab-VN-dev/synclab-CICD-framework
           ref: ${{ inputs.frameworkRef }}
           path: .synclab-cicd-framework
-          token: ${{ secrets.RELEASE_GH_TOKEN }}
 
       - name: Build unsigned APKs
         uses: ./.synclab-cicd-framework
@@ -191,7 +187,6 @@ jobs:
           repository: Synclab-VN-dev/synclab-CICD-framework
           ref: ${{ inputs.frameworkRef }}
           path: .synclab-cicd-framework
-          token: ${{ secrets.RELEASE_GH_TOKEN }}
 
       - name: Download unsigned APKs
         uses: actions/download-artifact@v4
@@ -303,7 +298,6 @@ jobs:
           repository: Synclab-VN-dev/synclab-CICD-framework
           ref: ${{ inputs.frameworkRef }}
           path: .synclab-cicd-framework
-          token: ${{ secrets.RELEASE_GH_TOKEN }}
 
       - name: Download release plan
         uses: actions/download-artifact@v4
@@ -321,7 +315,6 @@ jobs:
         uses: ./.synclab-cicd-framework
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
         with:
           command: verify-publish
           dry-run: ${{ inputs.dryRun }}
