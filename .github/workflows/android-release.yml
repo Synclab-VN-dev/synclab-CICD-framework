@@ -131,7 +131,7 @@ jobs:
           ref: ${{ inputs.frameworkRef }}
           path: .synclab-cicd-framework
 
-      - name: Build unsigned APKs
+      - name: Build unsigned Android artifacts
         uses: ./.synclab-cicd-framework
         env:
           SYNCLAB_CICD_SECRETS_JSON: ${{ toJson(secrets) }}
@@ -145,7 +145,7 @@ jobs:
           set -eux
           find synclab-unsigned-apks -maxdepth 2 -type f -printf '%p %s bytes\n' | tee synclab-unsigned-apks/tree-from-workflow.txt
 
-      - name: Upload unsigned APKs
+      - name: Upload unsigned Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: unsigned-apks
@@ -193,13 +193,13 @@ jobs:
           ref: ${{ inputs.frameworkRef }}
           path: .synclab-cicd-framework
 
-      - name: Download unsigned APKs
+      - name: Download unsigned Android artifacts
         uses: actions/download-artifact@v4
         with:
           name: unsigned-apks
           path: synclab-unsigned-apks
 
-      - name: Sign APKs through public API
+      - name: Sign Android artifacts through public API
         if: ${{ inputs.signingMode == 'public-api' }}
         uses: ./.synclab-cicd-framework
         env:
@@ -260,7 +260,7 @@ jobs:
           sign_one release prod "$SYNCLAB_SIGNING_API_KEY_PROD"
           find synclab-signed-apks -maxdepth 1 -type f -printf '%p %s bytes\n' | tee synclab-signed-apks/signed-tree.txt
 
-      - name: Upload signed APKs
+      - name: Upload signed Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: signed-apks
@@ -310,11 +310,28 @@ jobs:
           name: release-plan
           path: synclab-release-plan
 
-      - name: Download signed APKs
+      - name: Download signed Android artifacts
         uses: actions/download-artifact@v4
         with:
           name: signed-apks
           path: synclab-signed-apks
+
+      - name: Setup bundletool for AAB verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          if python - <<'PY'
+          import json
+          from pathlib import Path
+          plan = json.loads(Path("synclab-release-plan/release-plan.json").read_text())
+          raise SystemExit(0 if any(t.get("artifactType") == "aab" for t in plan.get("targets", [])) else 1)
+          PY
+          then
+            BUNDLETOOL_VERSION=1.18.3
+            BUNDLETOOL_JAR="$RUNNER_TEMP/bundletool-all-$BUNDLETOOL_VERSION.jar"
+            curl -fsSL               "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"               -o "$BUNDLETOOL_JAR"
+            echo "BUNDLETOOL_JAR=$BUNDLETOOL_JAR" >> "$GITHUB_ENV"
+          fi
 
       - name: Verify and publish release
         uses: ./.synclab-cicd-framework
