@@ -1,0 +1,14 @@
+name: Reusable public probe
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe
+        run: echo "public reusable workflow probe passed"
