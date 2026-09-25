@@ -43,7 +43,7 @@ def _config(artifact_type: str | None) -> dict:
     if artifact_type is not None:
         target["artifactType"] = artifact_type
     if artifact_type == "aab":
-        target["signing"]["expectedSignerSha256"] = TEST_FP_COLON
+        target["signing"]["expectedSignerSha256"] = TEST_FP_COLON.lower()
     return {
         "schemaVersion": 1,
         "project": {"name": "test"},
@@ -196,8 +196,26 @@ class AabArtifactTest(unittest.TestCase):
                 with self.assertRaises(VerifyError):
                     verify_aab_version(Path("."), Path("app.aab"), GradleVersion("18.0.0.1", 1800000001))
 
+    def test_verify_aab_version_rejects_wrong_version_code(self):
+        with tempfile.TemporaryDirectory() as temp:
+            bundletool = Path(temp) / "bundletool.jar"
+            bundletool.write_bytes(b"stub")
+            calls = [SimpleNamespace(returncode=0, stdout="18.0.0.1\\n"), SimpleNamespace(returncode=0, stdout="1800000002\\n")]
+            with patch.dict(os.environ, {"BUNDLETOOL_JAR": str(bundletool)}, clear=False), patch(
+                "synclab_release.apk_verifier._find_tool", return_value="java"
+            ), patch("synclab_release.apk_verifier.run_command", side_effect=calls):
+                with self.assertRaises(VerifyError):
+                    verify_aab_version(Path("."), Path("app.aab"), GradleVersion("18.0.0.1", 1800000001))
+
     def test_verify_aab_version_requires_bundletool(self):
         with patch.dict(os.environ, {}, clear=True), patch("synclab_release.apk_verifier._find_tool", return_value="java"):
+            with self.assertRaises(VerifyError):
+                verify_aab_version(Path("."), Path("app.aab"), GradleVersion("18.0.0.1", 1800000001))
+
+    def test_verify_aab_version_rejects_missing_bundletool_file(self):
+        with patch.dict(os.environ, {"BUNDLETOOL_JAR": "/definitely/missing/bundletool.jar"}, clear=False), patch(
+            "synclab_release.apk_verifier._find_tool", return_value="java"
+        ):
             with self.assertRaises(VerifyError):
                 verify_aab_version(Path("."), Path("app.aab"), GradleVersion("18.0.0.1", 1800000001))
 
