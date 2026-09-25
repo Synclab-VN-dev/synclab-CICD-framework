@@ -18,6 +18,7 @@ class TargetConfig:
     artifact_pattern: str
     asset_name: str
     signing: SigningConfig
+    artifact_type: str = "apk"
 
 
 @dataclass(frozen=True)
