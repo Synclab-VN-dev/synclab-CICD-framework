@@ -5,12 +5,19 @@ from .models import GradleVersion, ResolvedVersion
 from .quad_version import QuadVersion
 
 
+MAX_ANDROID_VERSION_CODE = 2_100_000_000
+
+
 def resolve_version(current: GradleVersion, bump: str, manual_version_name: str | None) -> ResolvedVersion:
     current_quad = QuadVersion.parse(current.version_name)
     expected_current_code = current_quad.to_version_code()
     if current.version_code != expected_current_code:
         raise PreflightError(
             f"Current versionCode {current.version_code} does not match versionName {current.version_name}; expected {expected_current_code}"
+        )
+    if current.version_code > MAX_ANDROID_VERSION_CODE:
+        raise PreflightError(
+            f"Current versionCode {current.version_code} exceeds Android maximum {MAX_ANDROID_VERSION_CODE}"
         )
 
     if manual_version_name:
@@ -29,6 +36,10 @@ def resolve_version(current: GradleVersion, bump: str, manual_version_name: str 
     if next_version.version_code <= current.version_code:
         raise PreflightError(
             f"Next versionCode {next_version.version_code} must be greater than current {current.version_code}"
+        )
+    if next_version.version_code > MAX_ANDROID_VERSION_CODE:
+        raise PreflightError(
+            f"Next versionCode {next_version.version_code} exceeds Android maximum {MAX_ANDROID_VERSION_CODE}"
         )
 
     return ResolvedVersion(current=current, next=next_version, mode=mode, bump=bump_level)
