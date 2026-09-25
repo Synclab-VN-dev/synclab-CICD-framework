@@ -1,0 +1,158 @@
+name: Synclab Android Release
+
+on:
+  workflow_call:
+    inputs:
+      configFile:
+        required: false
+        type: string
+        default: synclab-release.json
+      bump:
+        required: false
+        type: string
+        default: d
+      versionName:
+        required: false
+        type: string
+        default: ""
+      dryRun:
+        required: false
+        type: boolean
+        default: true
+      frameworkRef:
+        required: false
+        type: string
+        default: v1.0.2
+      signingMode:
+        required: false
+        type: string
+        default: self-hosted
+      signingUrl:
+        required: false
+        type: string
+        default: https://sign.synclab.com.vn
+    secrets:
+      SYNCLAB_SIGNING_API_KEY_PREVIEW:
+        required: false
+      SYNCLAB_SIGNING_API_KEY_PROD:
+        required: false
+
+permissions:
+  contents: write
+  actions: read
+  packages: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate signing mode
+        env:
+          SIGNING_MODE: ${{ inputs.signingMode }}
+        run: |
+          case "$SIGNING_MODE" in
+            self-hosted|public-api) ;;
+            *)
+              echo "Unsupported signingMode: $SIGNING_MODE" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Checkout framework action
+        uses: actions/checkout@v4
+        with:
+          repository: Synclab-VN-dev/synclab-CICD-framework
+          ref: ${{ inputs.frameworkRef }}
+          path: .synclab-cicd-framework
+
+      - name: Prepare release plan
+        uses: ./.synclab-cicd-framework
+        env:
+          SYNCLAB_CICD_SECRETS_JSON: ${{ toJson(secrets) }}
+        with:
+          command: prepare
+          config-file: ${{ inputs.configFile }}
+          bump: ${{ inputs.bump }}
+          version-name: ${{ inputs.versionName }}
+          dry-run: ${{ inputs.dryRun }}
+
+      - name: Upload release plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-plan
+          path: synclab-release-plan/*
+          if-no-files-found: error
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download release plan
+        uses: actions/download-artifact@v4
+        with:
+          name: release-plan
+          path: synclab-release-plan
+
+      - name: Checkout framework action
+        uses: actions/checkout@v4
+        with:
+          repository: Synclab-VN-dev/synclab-CICD-framework
+          ref: ${{ inputs.frameworkRef }}
+          path: .synclab-cicd-framework
+
+      - name: Build unsigned APKs
+        uses: ./.synclab-cicd-framework
+        env:
+          SYNCLAB_CICD_SECRETS_JSON: ${{ toJson(secrets) }}
+        with:
+          command: build
+          plan-file: synclab-release-plan/release-plan.json
+          output-dir: synclab-unsigned-apks
+
+      - name: Capture unsigned artifact tree
+        run: |
+          set -eux
+          find synclab-unsigned-apks -maxdepth 2 -type f -printf '%p %s bytes\n' | tee synclab-unsigned-apks/tree-from-workflow.txt
+
+      - name: Upload unsigned APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-apks
+          path: synclab-unsigned-apks/*
+          if-no-files-found: error
+
+      - name: Upload build logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-debug-logs
+          path: |
+            synclab-build.log
+            synclab-release-artifacts/*.log
+          if-no-files-found: ignore
