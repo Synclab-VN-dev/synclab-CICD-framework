@@ -1,0 +1,19 @@
+name: Reusable sign runner probe
+
+on:
+  workflow_call:
+    inputs:
+      signingMode:
+        required: false
+        type: string
+        default: self-hosted
+
+permissions:
+  contents: read
+
+jobs:
+  sign:
+    runs-on: ${{ fromJSON(inputs.signingMode == 'public-api' && '"ubuntu-latest"' || '["self-hosted","linux","x64","synclab-signing"]') }}
+    steps:
+      - name: Probe
+        run: echo "sign runner = ${{ inputs.signingMode }}"
