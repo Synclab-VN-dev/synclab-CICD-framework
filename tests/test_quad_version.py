@@ -38,6 +38,12 @@ class QuadVersionTest(unittest.TestCase):
         with self.assertRaises(PreflightError):
             resolve_version(GradleVersion("10.3.5.6", 1003050006), "d", "10.3.5.6")
 
+    def test_rejects_version_code_above_android_limit(self):
+        with self.assertRaises(PreflightError) as raised:
+            resolve_version(GradleVersion("21.0.0.0", 2100000000), "d", None)
+
+        self.assertIn("exceeds Android maximum 2100000000", raised.exception.message)
+
 
 if __name__ == "__main__":
     unittest.main()
