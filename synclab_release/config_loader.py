@@ -93,12 +93,16 @@ def load_config(path: str | Path) -> ReleaseConfig:
             profile=_require_str(signing_raw.get("profile"), f"targets.{name}.signing.profile") if signing_enabled else None,
             expected_signer_dn=_require_str(signing_raw.get("expectedSignerDn"), f"targets.{name}.signing.expectedSignerDn") if signing_enabled else None,
         )
+        artifact_type = _require_str(target.get("artifactType", "apk"), f"targets.{name}.artifactType")
+        if artifact_type not in {"apk", "aab"}:
+            raise ConfigError(f"targets.{name}.artifactType must be apk or aab")
         targets[name] = TargetConfig(
             name=name,
             build_command=command,
             artifact_pattern=_require_str(target.get("artifactPattern"), f"targets.{name}.artifactPattern"),
             asset_name=_require_str(target.get("assetName"), f"targets.{name}.assetName"),
             signing=signing,
+            artifact_type=artifact_type,
         )
 
     for name in target_names:
