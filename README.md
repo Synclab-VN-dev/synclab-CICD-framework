@@ -110,14 +110,16 @@ hoặc:
 
 `artifactType` mặc định là `apk` để giữ backward compatibility. AAB signing dùng
 endpoint `POST /v1/sign/android/aab`, multipart field `aab`, và được verify bằng
-`jarsigner` + `bundletool` trước khi publish.
+`jarsigner` + `bundletool` trước khi publish. Signed AAB targets phải khai báo
+`signing.expectedSignerSha256`; framework reject unsigned ZIP entries và verify
+certificate fingerprint bằng `keytool`, không chỉ dựa trên Subject DN.
 
 ## Signing modes
 
 Reusable Android release workflow hỗ trợ hai mode:
 
-- `self-hosted` (mặc định): giữ nguyên flow hiện tại, job `sign` chạy trên NAS self-hosted runner và gọi `https://127.0.0.1:8443`.
-- `public-api`: job `sign` chạy trên `ubuntu-latest`, reuse composite action `command: sign` và gọi endpoint truyền qua `signingUrl` (mặc định `https://sign.synclab.com.vn`).
+- `self-hosted` (mặc định): giữ nguyên APK flow hiện tại, job `sign` chạy trên NAS self-hosted runner và gọi `https://127.0.0.1:8443`. Signed AAB targets bị reject sớm ở mode này.
+- `public-api`: job `sign` chạy trên `ubuntu-latest`, reuse composite action `command: sign` và gọi endpoint truyền qua `signingUrl` (mặc định `https://sign.synclab.com.vn`). AAB signing hiện yêu cầu mode này.
 
 Ví dụ caller sử dụng public API signing:
 

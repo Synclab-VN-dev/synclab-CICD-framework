@@ -305,7 +305,12 @@ Endpoint này chỉ có ý nghĩa bên trong NAS self-hosted runner container d�
 | --- | --- | --- | --- |
 | `enabled` | Yes | boolean | `true` hoặc `false`. |
 | `profile` | Required khi `enabled=true` | string | `preview` hoặc `prod`. |
-| `expectedSignerDn` | Required khi `enabled=true` | string | DN dùng để verify artifact đã ký. APK dùng `apksigner`, AAB dùng `jarsigner`. |
+| `expectedSignerDn` | Required khi `enabled=true` | string | DN dùng để verify/diagnostic signer. Không dùng DN làm identity duy nhất cho AAB. |
+| `expectedSignerSha256` | Required với signed AAB; optional với APK | string | SHA-256 certificate fingerprint. Có thể viết có hoặc không có dấu `:`. Framework normalize và compare fingerprint thực tế. |
+
+AAB verification chạy `jarsigner -verify` và thêm strict check để reject unsigned entries. Strict code `4` được chấp nhận cho certificate self-signed/untrusted chain hiện tại; các strict warning code khác bị reject. Certificate identity của AAB được xác nhận thêm bằng `keytool -printcert -jarfile` + SHA-256 fingerprint.
+
+Signed AAB hiện chỉ hỗ trợ `signingMode=public-api`; reusable workflow fail sớm nếu release plan có signed AAB nhưng caller chọn `self-hosted`.
 
 Khuyến nghị target:
 

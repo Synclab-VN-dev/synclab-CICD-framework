@@ -86,6 +86,17 @@ jobs:
           version-name: ${{ inputs.versionName }}
           dry-run: ${{ inputs.dryRun }}
 
+      - name: Validate artifact signing mode
+        env:
+          SIGNING_MODE: ${{ inputs.signingMode }}
+        run: |
+          PYTHONPATH=.synclab-cicd-framework python - <<'PY'
+          import os
+          from pathlib import Path
+          from synclab_release.staged_pipeline import validate_signing_mode_for_plan
+          validate_signing_mode_for_plan(Path("synclab-release-plan/release-plan.json"), os.environ["SIGNING_MODE"])
+          PY
+
       - name: Upload release plan
         uses: actions/upload-artifact@v4
         with:
@@ -328,8 +339,12 @@ jobs:
           PY
           then
             BUNDLETOOL_VERSION=1.18.3
+            BUNDLETOOL_SHA256=a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29
             BUNDLETOOL_JAR="$RUNNER_TEMP/bundletool-all-$BUNDLETOOL_VERSION.jar"
-            curl -fsSL               "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"               -o "$BUNDLETOOL_JAR"
+            curl -fsSL \
+              "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar" \
+              -o "$BUNDLETOOL_JAR"
+            echo "$BUNDLETOOL_SHA256  $BUNDLETOOL_JAR" | sha256sum -c -
             echo "BUNDLETOOL_JAR=$BUNDLETOOL_JAR" >> "$GITHUB_ENV"
           fi
 

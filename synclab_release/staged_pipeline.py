@@ -52,6 +52,17 @@ def _signing_url(config: ReleaseConfig) -> str:
     return os.getenv(config.signing_service.url_env) or LOCAL_SIGNING_URL
 
 
+def validate_signing_mode_for_plan(plan_file: Path, signing_mode: str) -> None:
+    if signing_mode not in {"self-hosted", "public-api"}:
+        raise PreflightError(f"Unsupported signingMode: {signing_mode}")
+    if signing_mode != "self-hosted":
+        return
+    plan = _read_json(plan_file)
+    blocked = [target.get("name", "<unknown>") for target in plan.get("targets", []) if target.get("artifactType") == "aab" and target.get("signingEnabled")]
+    if blocked:
+        raise PreflightError("AAB signing currently requires signingMode=public-api; " f"self-hosted AAB target(s): {', '.join(blocked)}")
+
+
 def _debug_tree(path: Path, output: Path) -> None:
     lines = []
     if path.exists():
@@ -104,6 +115,7 @@ def prepare_stage(
                 "signingEnabled": target.signing.enabled,
                 "profile": target.signing.profile,
                 "expectedSignerDn": target.signing.expected_signer_dn,
+                "expectedSignerSha256": target.signing.expected_signer_sha256,
             }
         )
 
@@ -255,7 +267,7 @@ def verify_publish_stage(
         if not candidate.exists():
             raise VerifyError(f"Signed artifact missing for target {name}: {candidate}")
         verify_artifact_version(repo_root, candidate, target.artifact_type, resolved.next)
-        verify_artifact_signer(repo_root, candidate, target.artifact_type, target.signing.expected_signer_dn)
+        verify_artifact_signer(repo_root, candidate, target.artifact_type, target.signing.expected_signer_dn, target.signing.expected_signer_sha256)
         final_artifacts.append(copy_final_artifact(output_dir, config, target, candidate, resolved.next))
 
     release_files = [artifact.output_path for artifact in final_artifacts]

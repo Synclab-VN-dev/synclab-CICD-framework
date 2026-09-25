@@ -9,6 +9,7 @@ class SigningConfig:
     enabled: bool
     profile: str | None = None
     expected_signer_dn: str | None = None
+    expected_signer_sha256: str | None = None
 
 
 @dataclass(frozen=True)

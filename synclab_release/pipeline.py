@@ -64,7 +64,7 @@ def run_release(
                 tls_verify=config.signing_service.tls_verify,
             )
         verify_artifact_version(repo_root, source, target.artifact_type, resolved.next)
-        verify_artifact_signer(repo_root, source, target.artifact_type, target.signing.expected_signer_dn)
+        verify_artifact_signer(repo_root, source, target.artifact_type, target.signing.expected_signer_dn, target.signing.expected_signer_sha256)
         final_artifacts.append(copy_final_artifact(output_dir, config, target, source, resolved.next))
 
     release_files = [artifact.output_path for artifact in final_artifacts]

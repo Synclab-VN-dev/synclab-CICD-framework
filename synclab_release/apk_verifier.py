@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -62,27 +63,58 @@ def _bundletool_manifest_value(repo_root: Path, aab_path: Path, xpath: str) -> s
     return result.stdout.strip().strip('"')
 
 
-def verify_signer(repo_root: Path, apk_path: Path, expected_dn: str | None) -> None:
-    if not expected_dn:
+def _normalize_sha256_fingerprint(value: str) -> str:
+    normalized = value.replace(":", "").replace(" ", "").upper()
+    if len(normalized) != 64 or any(ch not in "0123456789ABCDEF" for ch in normalized):
+        raise VerifyError("Invalid expected signer SHA-256 fingerprint")
+    return normalized
+
+
+def _extract_sha256_fingerprint(output: str, pattern: str, artifact_name: str) -> str:
+    match = re.search(pattern, output, flags=re.IGNORECASE)
+    if not match:
+        raise VerifyError(f"Unable to read signer SHA-256 fingerprint for {artifact_name}")
+    return _normalize_sha256_fingerprint(match.group(1))
+
+
+def verify_signer(repo_root: Path, apk_path: Path, expected_dn: str | None, expected_sha256: str | None = None) -> None:
+    if not expected_dn and not expected_sha256:
         return
     apksigner = _find_tool("apksigner")
     result = run_command([apksigner, "verify", "--print-certs", "--verbose", str(apk_path)], repo_root, check=False)
     if result.returncode != 0:
         raise VerifyError(f"apksigner failed for {apk_path.name}")
-    if expected_dn not in result.stdout:
+    if expected_dn and expected_dn not in result.stdout:
         raise VerifyError(f"{apk_path.name} signer DN mismatch")
+    if expected_sha256:
+        actual = _extract_sha256_fingerprint(result.stdout, r"certificate SHA-256 digest:\s*([0-9A-Fa-f:]+)", apk_path.name)
+        if actual != _normalize_sha256_fingerprint(expected_sha256):
+            raise VerifyError(f"{apk_path.name} signer SHA-256 fingerprint mismatch")
 
 
-def verify_aab_signer(repo_root: Path, aab_path: Path, expected_dn: str | None) -> None:
-    if not expected_dn:
+def verify_aab_signer(repo_root: Path, aab_path: Path, expected_dn: str | None, expected_sha256: str | None = None) -> None:
+    if not expected_dn and not expected_sha256:
         return
     jarsigner = _find_tool("jarsigner")
     result = run_command([jarsigner, "-verify", "-verbose", "-certs", str(aab_path)], repo_root, check=False)
     output = result.stdout
     if result.returncode != 0 or "jar verified." not in output.lower():
         raise VerifyError(f"jarsigner failed for {aab_path.name}")
-    if expected_dn not in output:
+    strict_result = run_command([jarsigner, "-verify", "-strict", "-verbose", "-certs", str(aab_path)], repo_root, check=False)
+    if strict_result.returncode & 16:
+        raise VerifyError(f"{aab_path.name} contains unsigned entries")
+    if strict_result.returncode not in {0, 4}:
+        raise VerifyError(f"jarsigner strict verification failed for {aab_path.name}")
+    if expected_dn and expected_dn not in output:
         raise VerifyError(f"{aab_path.name} signer DN mismatch")
+    if expected_sha256:
+        keytool = _find_tool("keytool")
+        cert = run_command([keytool, "-printcert", "-jarfile", str(aab_path)], repo_root, check=False)
+        if cert.returncode != 0:
+            raise VerifyError(f"keytool failed for {aab_path.name}")
+        actual = _extract_sha256_fingerprint(cert.stdout, r"SHA256:\s*([0-9A-Fa-f:]+)", aab_path.name)
+        if actual != _normalize_sha256_fingerprint(expected_sha256):
+            raise VerifyError(f"{aab_path.name} signer SHA-256 fingerprint mismatch")
 
 
 def verify_artifact_signer(
@@ -90,12 +122,13 @@ def verify_artifact_signer(
     artifact_path: Path,
     artifact_type: str,
     expected_dn: str | None,
+    expected_sha256: str | None = None,
 ) -> None:
     if artifact_type == "apk":
-        verify_signer(repo_root, artifact_path, expected_dn)
+        verify_signer(repo_root, artifact_path, expected_dn, expected_sha256)
         return
     if artifact_type == "aab":
-        verify_aab_signer(repo_root, artifact_path, expected_dn)
+        verify_aab_signer(repo_root, artifact_path, expected_dn, expected_sha256)
         return
     raise VerifyError(f"Unsupported Android artifact type: {artifact_type}")
 
