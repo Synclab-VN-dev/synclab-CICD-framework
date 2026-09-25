@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from .apk_verifier import assert_unsigned, verify_signer, verify_version
+from .apk_verifier import assert_unsigned_artifact, verify_artifact_signer, verify_artifact_version
 from .artifact_manager import copy_final_artifact, render_name, write_release_files
 from .builder import build_all, clean_artifacts, validate_build_placeholders
 from .config_loader import load_config
@@ -15,7 +15,7 @@ from .gradle_version import read_gradle_version, write_gradle_version
 from .github_release import publish_release
 from .models import Artifact, GradleVersion, ReleaseConfig, ResolvedVersion
 from .preflight import _http_get_json_or_text
-from .signing_client import api_key_for_profile, sign_apk
+from .signing_client import api_key_for_profile, sign_android_artifact
 from .version_resolver import resolve_version
 
 
@@ -100,6 +100,7 @@ def prepare_stage(
             {
                 "name": name,
                 "assetName": render_name(target.asset_name, config.project_name, resolved.next, name),
+                "artifactType": target.artifact_type,
                 "signingEnabled": target.signing.enabled,
                 "profile": target.signing.profile,
                 "expectedSignerDn": target.signing.expected_signer_dn,
@@ -137,9 +138,17 @@ def build_stage(*, repo_root: Path, plan_file: Path, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest = {"versionName": resolved.next.version_name, "versionCode": resolved.next.version_code, "artifacts": []}
     for name, source in built.items():
-        destination = output_dir / f"{name}.apk"
+        target = config.targets[name]
+        destination = output_dir / f"{name}.{target.artifact_type}"
         shutil.copy2(source, destination)
-        manifest["artifacts"].append({"target": name, "path": destination.name, "source": str(source)})
+        manifest["artifacts"].append(
+            {
+                "target": name,
+                "artifactType": target.artifact_type,
+                "path": destination.name,
+                "source": str(source),
+            }
+        )
     _write_json(output_dir / "unsigned-manifest.json", manifest)
     shutil.copy2(plan_file, output_dir / "release-plan.json")
     _debug_tree(output_dir, output_dir / "unsigned-tree.txt")
@@ -170,12 +179,12 @@ def sign_stage(
     manifest = {"versionName": resolved.next.version_name, "versionCode": resolved.next.version_code, "artifacts": []}
     for name in target_names:
         target = config.targets[name]
-        source = unsigned_dir / f"{name}.apk"
+        source = unsigned_dir / f"{name}.{target.artifact_type}"
         if not source.exists():
             raise SignError(f"Unsigned artifact missing for target {name}: {source}")
         if target.signing.enabled:
             if require_unsigned_check:
-                assert_unsigned(repo_root, source)
+                assert_unsigned_artifact(repo_root, source, target.artifact_type)
             api_key = api_key_for_profile(target.signing.profile or "")
             profiles_body = _http_get_json_or_text(
                 f"{signing_url.rstrip('/')}/v1/profiles",
@@ -183,28 +192,37 @@ def sign_stage(
                 tls_verify=config.signing_service.tls_verify,
             )
             (output_dir / f"{name}-profiles.json").write_text(profiles_body + "\n", encoding="utf-8")
-            signed_path = output_dir / f"{name}-signed.apk"
-            final_path = sign_apk(
+            signed_path = output_dir / f"{name}-signed.{target.artifact_type}"
+            final_path = sign_android_artifact(
                 signing_url=signing_url,
                 api_key=api_key,
                 profile=target.signing.profile or "",
                 metadata={
                     "repo": os.getenv("GITHUB_REPOSITORY", config.project_name),
                     "target": name,
+                    "artifactType": target.artifact_type,
                     "version": resolved.next.version_name,
                     "versionCode": str(resolved.next.version_code),
                     "sha": os.getenv("GITHUB_SHA", "local"),
                     "run_id": os.getenv("GITHUB_RUN_ID", "local"),
                     "framework": "synclab-cicd",
                 },
-                apk_path=source,
+                artifact_type=target.artifact_type,
+                artifact_path=source,
                 output_path=signed_path,
                 tls_verify=config.signing_service.tls_verify,
             )
         else:
-            final_path = output_dir / f"{name}.apk"
+            final_path = output_dir / f"{name}.{target.artifact_type}"
             shutil.copy2(source, final_path)
-        manifest["artifacts"].append({"target": name, "path": final_path.name, "signed": target.signing.enabled})
+        manifest["artifacts"].append(
+            {
+                "target": name,
+                "artifactType": target.artifact_type,
+                "path": final_path.name,
+                "signed": target.signing.enabled,
+            }
+        )
 
     shutil.copy2(plan_file, output_dir / "release-plan.json")
     _write_json(output_dir / "signed-manifest.json", manifest)
@@ -229,11 +247,15 @@ def verify_publish_stage(
     final_artifacts: list[Artifact] = []
     for name in config.bundle_targets:
         target = config.targets[name]
-        candidate = signed_dir / (f"{name}-signed.apk" if target.signing.enabled else f"{name}.apk")
+        candidate = signed_dir / (
+            f"{name}-signed.{target.artifact_type}"
+            if target.signing.enabled
+            else f"{name}.{target.artifact_type}"
+        )
         if not candidate.exists():
             raise VerifyError(f"Signed artifact missing for target {name}: {candidate}")
-        verify_version(repo_root, candidate, resolved.next)
-        verify_signer(repo_root, candidate, target.signing.expected_signer_dn)
+        verify_artifact_version(repo_root, candidate, target.artifact_type, resolved.next)
+        verify_artifact_signer(repo_root, candidate, target.artifact_type, target.signing.expected_signer_dn)
         final_artifacts.append(copy_final_artifact(output_dir, config, target, candidate, resolved.next))
 
     release_files = [artifact.output_path for artifact in final_artifacts]
