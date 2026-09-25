@@ -13,9 +13,9 @@ Framework chịu trách nhiệm:
 
 - Đọc release contract từ `synclab-release.json`.
 - Tính version mới theo chuẩn `a.b.c.d` và tự derive `versionCode`.
-- Build các APK target như `debug`, `prerelease`, `release`.
-- Ký APK bằng Synclab signing service qua NAS self-hosted runner hoặc public API mà không đưa signing key lên GitHub.
-- Verify APK, signer, checksum và publish GitHub Release.
+- Build Android artifacts theo target, hỗ trợ `apk` và `aab`.
+- Ký APK/AAB bằng Synclab signing service mà không đưa signing key lên GitHub (AAB hiện dùng public API signing path).
+- Verify artifact version, signer, checksum và publish GitHub Release.
 - Ship một release đã publish từ repo nguồn sang repo đích mà không build/ký lại.
 
 ## Kiến trúc tổng thể
@@ -25,11 +25,11 @@ Client Android repo
   -> reusable workflow: .github/workflows/android-release.yml
   -> composite action: action.yml
   -> Python CLI/package: synclab_release/
-  -> unsigned APK artifacts
+  -> unsigned Android artifacts (APK/AAB)
   -> signing job
        -> self-hosted: NAS runner -> https://127.0.0.1:8443
        -> public-api: ubuntu-latest -> https://sign.synclab.com.vn
-  -> signed APK artifacts
+  -> signed Android artifacts
   -> verify/publish GitHub Release
   -> optional ship release to another repo
 ```
@@ -41,7 +41,7 @@ Các thành phần chính:
 - **Composite action**: cài Python package từ repo này và gọi CLI `synclab-release`.
 - **Python package**: xử lý config, version, build, artifact, verify và publish.
 - **Signing job**: hỗ trợ `self-hosted` (NAS runner + local signing service) và `public-api` (GitHub-hosted runner + public signing endpoint).
-- **Synclab signing service**: giữ signing key, ký APK bằng profile `preview` hoặc `prod`, rồi trả signed APK.
+- **Synclab signing service**: giữ signing key, ký APK/AAB bằng profile `preview` hoặc `prod`, rồi trả signed artifact.
 
 Ranh giới quan trọng:
 
@@ -89,6 +89,28 @@ versionCode = a * 100000000 + b * 1000000 + c * 10000 + d
 ```
 
 Example: `10.3.5.6 -> 1003050006`.
+
+## Artifact types
+
+Mỗi target trong `synclab-release.json` có thể khai báo:
+
+```json
+{
+  "artifactType": "apk"
+}
+```
+
+hoặc:
+
+```json
+{
+  "artifactType": "aab"
+}
+```
+
+`artifactType` mặc định là `apk` để giữ backward compatibility. AAB signing dùng
+endpoint `POST /v1/sign/android/aab`, multipart field `aab`, và được verify bằng
+`jarsigner` + `bundletool` trước khi publish.
 
 ## Signing modes
 
