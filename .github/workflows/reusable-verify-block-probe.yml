@@ -1,0 +1,98 @@
+name: Reusable verify block probe
+
+on:
+  workflow_call:
+    inputs:
+      dryRun:
+        required: false
+        type: boolean
+        default: true
+      frameworkRef:
+        required: false
+        type: string
+        default: issue-6-public-api-signing
+
+permissions:
+  contents: write
+  actions: read
+  packages: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo prepare
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo build
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo sign
+
+  verify_publish:
+    needs: sign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Checkout framework action
+        uses: actions/checkout@v4
+        with:
+          repository: Synclab-VN-dev/synclab-CICD-framework
+          ref: ${{ inputs.frameworkRef }}
+          path: .synclab-cicd-framework
+
+      - name: Download release plan
+        uses: actions/download-artifact@v4
+        with:
+          name: release-plan
+          path: synclab-release-plan
+
+      - name: Download signed APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-apks
+          path: synclab-signed-apks
+
+      - name: Verify and publish release
+        uses: ./.synclab-cicd-framework
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          command: verify-publish
+          dry-run: ${{ inputs.dryRun }}
+          plan-file: synclab-release-plan/release-plan.json
+          signed-dir: synclab-signed-apks
+          output-dir: synclab-final-artifacts
+
+      - name: Capture final artifact tree
+        run: |
+          set -eux
+          find synclab-final-artifacts -maxdepth 2 -type f -printf '%p %s bytes\n' | tee synclab-final-artifacts/tree-from-workflow.txt
+
+      - name: Upload final artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: final-artifacts
+          path: |
+            synclab-final-artifacts/*
+          if-no-files-found: ignore
