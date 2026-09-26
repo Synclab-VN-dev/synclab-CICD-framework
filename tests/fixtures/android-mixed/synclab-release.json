@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "name": "ci-fixture"
+  },
+  "version": {
+    "source": "gradle",
+    "file": "version.gradle",
+    "versionNameScheme": "quad",
+    "versionCodeFormula": "a*100000000+b*1000000+c*10000+d"
+  },
+  "bundle": {
+    "name": "android",
+    "targets": ["release", "play"]
+  },
+  "targets": {
+    "release": {
+      "artifactType": "apk",
+      "buildCommand": ["gradle", "--no-daemon", ":app:assembleRelease"],
+      "artifactPattern": "app/build/outputs/apk/release/app-release-unsigned.apk",
+      "assetName": "ci-fixture-{versionName}.apk",
+      "signing": {
+        "enabled": true,
+        "profile": "test",
+        "expectedSignerDn": "CN=Synclab CI, OU=CI, O=Synclab, C=VN",
+        "expectedSignerSha256": "__CI_FINGERPRINT__"
+      }
+    },
+    "play": {
+      "artifactType": "aab",
+      "buildCommand": ["gradle", "--no-daemon", ":app:bundleRelease"],
+      "artifactPattern": "app/build/outputs/bundle/release/app-release.aab",
+      "assetName": "ci-fixture-{versionName}.aab",
+      "signing": {
+        "enabled": true,
+        "profile": "test",
+        "expectedSignerDn": "CN=Synclab CI, OU=CI, O=Synclab, C=VN",
+        "expectedSignerSha256": "__CI_FINGERPRINT__"
+      }
+    }
+  },
+  "githubRelease": {
+    "tagFormat": "v{versionName}",
+    "nameFormat": "{project} {versionName}",
+    "prerelease": false
+  },
+  "signingService": {
+    "urlEnv": "SYNCLAB_SIGNING_URL",
+    "requiresTailscale": false,
+    "tlsVerify": false
+  }
+}

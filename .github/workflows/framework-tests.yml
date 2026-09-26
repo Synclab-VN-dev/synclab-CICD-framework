@@ -28,10 +28,23 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
       - name: Compile Python package
         run: python -m compileall -q synclab_release tests
 
-      - name: Run unit tests
+      - name: Run unit and integration tests
         run: python -m unittest discover -s tests -v
 
       - name: Run real jarsigner/keytool AAB verifier E2E
@@ -48,3 +61,7 @@ jobs:
             -o "$BUNDLETOOL_JAR"
           echo "$BUNDLETOOL_SHA256  $BUNDLETOOL_JAR" | sha256sum -c -
           java -jar "$BUNDLETOOL_JAR" version
+          echo "BUNDLETOOL_JAR=$BUNDLETOOL_JAR" >> "$GITHUB_ENV"
+
+      - name: Run isolated mixed APK+AAB staged pipeline E2E
+        run: bash tests/e2e_mixed_pipeline.sh

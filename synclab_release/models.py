@@ -75,4 +75,5 @@ class Artifact:
     output_path: Path
     asset_name: str
     sha256: str
+    artifact_type: str
     signing_profile: str | None

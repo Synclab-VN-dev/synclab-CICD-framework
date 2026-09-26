@@ -52,6 +52,11 @@ def _signing_url(config: ReleaseConfig) -> str:
     return os.getenv(config.signing_service.url_env) or LOCAL_SIGNING_URL
 
 
+def release_plan_requires_bundletool(plan_file: Path) -> bool:
+    plan = _read_json(plan_file)
+    return any(target.get("artifactType") == "aab" for target in plan.get("targets", []))
+
+
 def validate_signing_mode_for_plan(plan_file: Path, signing_mode: str) -> None:
     if signing_mode not in {"self-hosted", "public-api"}:
         raise PreflightError(f"Unsupported signingMode: {signing_mode}")

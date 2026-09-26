@@ -332,10 +332,9 @@ jobs:
         run: |
           set -euo pipefail
           if python - <<'PY'
-          import json
           from pathlib import Path
-          plan = json.loads(Path("synclab-release-plan/release-plan.json").read_text())
-          raise SystemExit(0 if any(t.get("artifactType") == "aab" for t in plan.get("targets", [])) else 1)
+          from synclab_release.staged_pipeline import release_plan_requires_bundletool
+          raise SystemExit(0 if release_plan_requires_bundletool(Path("synclab-release-plan/release-plan.json")) else 1)
           PY
           then
             BUNDLETOOL_VERSION=1.18.3
