@@ -331,7 +331,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if python - <<'PY'
+          if PYTHONPATH=.synclab-cicd-framework python - <<'PY'
           from pathlib import Path
           from synclab_release.staged_pipeline import release_plan_requires_bundletool
           raise SystemExit(0 if release_plan_requires_bundletool(Path("synclab-release-plan/release-plan.json")) else 1)

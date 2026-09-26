@@ -233,5 +233,10 @@ class AabArtifactTest(unittest.TestCase):
             validate_signing_mode_for_plan(plan, "public-api")
 
 
+    def test_reusable_workflow_bundletool_helper_uses_framework_pythonpath(self):
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/android-release.yml").read_text(encoding="utf-8")
+        self.assertIn("PYTHONPATH=.synclab-cicd-framework python - <<'PY'", workflow)
+
+
 if __name__ == "__main__":
     unittest.main()
