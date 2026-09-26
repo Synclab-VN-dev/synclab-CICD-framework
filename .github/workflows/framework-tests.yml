@@ -1,0 +1,72 @@
+name: Framework Unit Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$ANDROID_SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_PATH"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Compile Python package
+        run: python -m compileall -q synclab_release tests
+
+      - name: Run unit and integration tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Run real jarsigner/keytool AAB verifier E2E
+        run: bash tests/e2e_aab_verifier.sh
+
+      - name: Validate pinned bundletool artifact
+        run: |
+          set -euo pipefail
+          BUNDLETOOL_VERSION=1.18.3
+          BUNDLETOOL_SHA256=a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29
+          BUNDLETOOL_JAR="$RUNNER_TEMP/bundletool-all-$BUNDLETOOL_VERSION.jar"
+          curl -fsSL \
+            "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar" \
+            -o "$BUNDLETOOL_JAR"
+          echo "$BUNDLETOOL_SHA256  $BUNDLETOOL_JAR" | sha256sum -c -
+          java -jar "$BUNDLETOOL_JAR" version
+          echo "BUNDLETOOL_JAR=$BUNDLETOOL_JAR" >> "$GITHUB_ENV"
+
+      - name: Run isolated mixed APK+AAB staged pipeline E2E
+        run: bash tests/e2e_mixed_pipeline.sh

@@ -33,6 +33,7 @@ def copy_final_artifact(
         output_path=output_path,
         asset_name=asset_name,
         sha256=sha256_file(output_path),
+        artifact_type=target.artifact_type,
         signing_profile=target.signing.profile if target.signing.enabled else None,
     )
 
@@ -49,6 +50,7 @@ def write_release_files(output_dir: Path, config: ReleaseConfig, resolved: Resol
                 "target": artifact.target,
                 "assetName": artifact.asset_name,
                 "sha256": artifact.sha256,
+                "artifactType": artifact.artifact_type,
                 "signingProfile": artifact.signing_profile,
             }
             for artifact in artifacts

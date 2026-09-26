@@ -9,6 +9,7 @@ class SigningConfig:
     enabled: bool
     profile: str | None = None
     expected_signer_dn: str | None = None
+    expected_signer_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class TargetConfig:
     artifact_pattern: str
     asset_name: str
     signing: SigningConfig
+    artifact_type: str = "apk"
 
 
 @dataclass(frozen=True)
@@ -73,4 +75,5 @@ class Artifact:
     output_path: Path
     asset_name: str
     sha256: str
+    artifact_type: str
     signing_profile: str | None

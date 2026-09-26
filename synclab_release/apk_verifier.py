@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -32,22 +33,132 @@ def _find_tool(tool: str) -> str:
     return resolved
 
 
-def verify_signer(repo_root: Path, apk_path: Path, expected_dn: str | None) -> None:
-    if not expected_dn:
+def _bundletool_jar() -> Path:
+    raw = os.getenv("BUNDLETOOL_JAR")
+    if not raw:
+        raise VerifyError("BUNDLETOOL_JAR is required to verify AAB metadata")
+    path = Path(raw)
+    if not path.is_file():
+        raise VerifyError(f"BUNDLETOOL_JAR does not exist: {path}")
+    return path
+
+
+def _bundletool_manifest_value(repo_root: Path, aab_path: Path, xpath: str) -> str:
+    java = _find_tool("java")
+    result = run_command(
+        [
+            java,
+            "-jar",
+            str(_bundletool_jar()),
+            "dump",
+            "manifest",
+            f"--bundle={aab_path}",
+            f"--xpath={xpath}",
+        ],
+        repo_root,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise VerifyError(f"bundletool failed for {aab_path.name}: {xpath}")
+    return result.stdout.strip().strip('"')
+
+
+def _normalize_sha256_fingerprint(value: str) -> str:
+    normalized = value.replace(":", "").replace(" ", "").upper()
+    if len(normalized) != 64 or any(ch not in "0123456789ABCDEF" for ch in normalized):
+        raise VerifyError("Invalid expected signer SHA-256 fingerprint")
+    return normalized
+
+
+def _extract_sha256_fingerprint(output: str, pattern: str, artifact_name: str) -> str:
+    match = re.search(pattern, output, flags=re.IGNORECASE)
+    if not match:
+        raise VerifyError(f"Unable to read signer SHA-256 fingerprint for {artifact_name}")
+    return _normalize_sha256_fingerprint(match.group(1))
+
+
+def verify_signer(repo_root: Path, apk_path: Path, expected_dn: str | None, expected_sha256: str | None = None) -> None:
+    if not expected_dn and not expected_sha256:
         return
     apksigner = _find_tool("apksigner")
     result = run_command([apksigner, "verify", "--print-certs", "--verbose", str(apk_path)], repo_root, check=False)
     if result.returncode != 0:
         raise VerifyError(f"apksigner failed for {apk_path.name}")
-    if expected_dn not in result.stdout:
+    if expected_dn and expected_dn not in result.stdout:
         raise VerifyError(f"{apk_path.name} signer DN mismatch")
+    if expected_sha256:
+        actual = _extract_sha256_fingerprint(result.stdout, r"certificate SHA-256 digest:\s*([0-9A-Fa-f:]+)", apk_path.name)
+        if actual != _normalize_sha256_fingerprint(expected_sha256):
+            raise VerifyError(f"{apk_path.name} signer SHA-256 fingerprint mismatch")
+
+
+def verify_aab_signer(repo_root: Path, aab_path: Path, expected_dn: str | None, expected_sha256: str | None = None) -> None:
+    if not expected_dn and not expected_sha256:
+        return
+    jarsigner = _find_tool("jarsigner")
+    result = run_command([jarsigner, "-verify", "-verbose", "-certs", str(aab_path)], repo_root, check=False)
+    output = result.stdout
+    if result.returncode != 0 or "jar verified." not in output.lower():
+        raise VerifyError(f"jarsigner failed for {aab_path.name}")
+    strict_result = run_command([jarsigner, "-verify", "-strict", "-verbose", "-certs", str(aab_path)], repo_root, check=False)
+    if strict_result.returncode & 16:
+        raise VerifyError(f"{aab_path.name} contains unsigned entries")
+    if strict_result.returncode not in {0, 4}:
+        raise VerifyError(f"jarsigner strict verification failed for {aab_path.name}")
+    if expected_dn and expected_dn not in output:
+        raise VerifyError(f"{aab_path.name} signer DN mismatch")
+    if expected_sha256:
+        keytool = _find_tool("keytool")
+        cert = run_command([keytool, "-printcert", "-jarfile", str(aab_path)], repo_root, check=False)
+        if cert.returncode != 0:
+            raise VerifyError(f"keytool failed for {aab_path.name}")
+        actual = _extract_sha256_fingerprint(cert.stdout, r"SHA256:\s*([0-9A-Fa-f:]+)", aab_path.name)
+        if actual != _normalize_sha256_fingerprint(expected_sha256):
+            raise VerifyError(f"{aab_path.name} signer SHA-256 fingerprint mismatch")
+
+
+def verify_artifact_signer(
+    repo_root: Path,
+    artifact_path: Path,
+    artifact_type: str,
+    expected_dn: str | None,
+    expected_sha256: str | None = None,
+) -> None:
+    if artifact_type == "apk":
+        verify_signer(repo_root, artifact_path, expected_dn, expected_sha256)
+        return
+    if artifact_type == "aab":
+        verify_aab_signer(repo_root, artifact_path, expected_dn, expected_sha256)
+        return
+    raise VerifyError(f"Unsupported Android artifact type: {artifact_type}")
 
 
 def assert_unsigned(repo_root: Path, apk_path: Path) -> None:
     apksigner = _find_tool("apksigner")
     result = run_command([apksigner, "verify", "--verbose", str(apk_path)], repo_root, check=False)
     if result.returncode == 0:
-        raise VerifyError(f"{apk_path.name} is already signed; NAS signing targets must provide unsigned APKs")
+        raise VerifyError(f"{apk_path.name} is already signed; signing targets must provide unsigned APKs")
+
+
+def assert_unsigned_aab(repo_root: Path, aab_path: Path) -> None:
+    jarsigner = _find_tool("jarsigner")
+    result = run_command([jarsigner, "-verify", "-verbose", "-certs", str(aab_path)], repo_root, check=False)
+    output = result.stdout.lower()
+    if "jar is unsigned" in output:
+        return
+    if result.returncode == 0:
+        raise VerifyError(f"{aab_path.name} is already signed; signing targets must provide unsigned AABs")
+    raise VerifyError(f"Unable to verify unsigned AAB state for {aab_path.name}")
+
+
+def assert_unsigned_artifact(repo_root: Path, artifact_path: Path, artifact_type: str) -> None:
+    if artifact_type == "apk":
+        assert_unsigned(repo_root, artifact_path)
+        return
+    if artifact_type == "aab":
+        assert_unsigned_aab(repo_root, artifact_path)
+        return
+    raise VerifyError(f"Unsupported Android artifact type: {artifact_type}")
 
 
 def verify_version(repo_root: Path, apk_path: Path, expected: GradleVersion) -> None:
@@ -62,3 +173,27 @@ def verify_version(repo_root: Path, apk_path: Path, expected: GradleVersion) -> 
         raise VerifyError(f"{apk_path.name} versionName mismatch")
     if f"versionCode='{expected.version_code}'" not in result.stdout:
         raise VerifyError(f"{apk_path.name} versionCode mismatch")
+
+
+def verify_aab_version(repo_root: Path, aab_path: Path, expected: GradleVersion) -> None:
+    version_name = _bundletool_manifest_value(repo_root, aab_path, "/manifest/@android:versionName")
+    version_code = _bundletool_manifest_value(repo_root, aab_path, "/manifest/@android:versionCode")
+    if version_name != expected.version_name:
+        raise VerifyError(f"{aab_path.name} versionName mismatch")
+    if version_code != str(expected.version_code):
+        raise VerifyError(f"{aab_path.name} versionCode mismatch")
+
+
+def verify_artifact_version(
+    repo_root: Path,
+    artifact_path: Path,
+    artifact_type: str,
+    expected: GradleVersion,
+) -> None:
+    if artifact_type == "apk":
+        verify_version(repo_root, artifact_path, expected)
+        return
+    if artifact_type == "aab":
+        verify_aab_version(repo_root, artifact_path, expected)
+        return
+    raise VerifyError(f"Unsupported Android artifact type: {artifact_type}")

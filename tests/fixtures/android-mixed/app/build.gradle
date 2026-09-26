@@ -1,0 +1,25 @@
+plugins {
+    id "com.android.application"
+}
+
+def versionText = rootProject.file("version.gradle").getText("UTF-8")
+def versionNameMatch = (versionText =~ /versionName\s+"([^"]+)"/)
+def versionCodeMatch = (versionText =~ /versionCode\s+(\d+)/)
+if (!versionNameMatch.find() || !versionCodeMatch.find()) {
+    throw new GradleException("Unable to parse version.gradle")
+}
+def ciVersionName = versionNameMatch.group(1)
+def ciVersionCode = versionCodeMatch.group(1).toInteger()
+
+android {
+    namespace "com.synclab.cifixture"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.synclab.cifixture"
+        minSdk 23
+        targetSdk 35
+        versionName ciVersionName
+        versionCode ciVersionCode
+    }
+}

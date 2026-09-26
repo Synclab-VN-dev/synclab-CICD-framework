@@ -13,9 +13,9 @@ Framework chịu trách nhiệm:
 
 - Đọc release contract từ `synclab-release.json`.
 - Tính version mới theo chuẩn `a.b.c.d` và tự derive `versionCode`.
-- Build các APK target như `debug`, `prerelease`, `release`.
-- Ký APK bằng Synclab signing service qua NAS self-hosted runner hoặc public API mà không đưa signing key lên GitHub.
-- Verify APK, signer, checksum và publish GitHub Release.
+- Build Android artifacts theo target, hỗ trợ `apk` và `aab`.
+- Ký APK/AAB bằng Synclab signing service mà không đưa signing key lên GitHub (AAB hiện dùng public API signing path).
+- Verify artifact version, signer, checksum và publish GitHub Release.
 - Ship một release đã publish từ repo nguồn sang repo đích mà không build/ký lại.
 
 ## Kiến trúc tổng thể
@@ -25,11 +25,9 @@ Client Android repo
   -> reusable workflow: .github/workflows/android-release.yml
   -> composite action: action.yml
   -> Python CLI/package: synclab_release/
-  -> unsigned APK artifacts
-  -> signing job
-       -> self-hosted: NAS runner -> https://127.0.0.1:8443
-       -> public-api: ubuntu-latest -> https://sign.synclab.com.vn
-  -> signed APK artifacts
+  -> unsigned Android artifacts (APK/AAB)
+  -> public API signing job on ubuntu-latest -> https://sign.synclab.com.vn
+  -> signed Android artifacts
   -> verify/publish GitHub Release
   -> optional ship release to another repo
 ```
@@ -40,14 +38,14 @@ Các thành phần chính:
 - **Reusable workflow**: chia release thành các job `prepare`, `build`, `sign`, `verify_publish`.
 - **Composite action**: cài Python package từ repo này và gọi CLI `synclab-release`.
 - **Python package**: xử lý config, version, build, artifact, verify và publish.
-- **Signing job**: hỗ trợ `self-hosted` (NAS runner + local signing service) và `public-api` (GitHub-hosted runner + public signing endpoint).
-- **Synclab signing service**: giữ signing key, ký APK bằng profile `preview` hoặc `prod`, rồi trả signed APK.
+- **Signing job**: chạy trên GitHub-hosted runner và gọi public signing endpoint `https://sign.synclab.com.vn`.
+- **Synclab signing service**: giữ signing key, ký APK/AAB bằng profile `preview` hoặc `prod`, rồi trả signed artifact.
 
 Ranh giới quan trọng:
 
-- GitHub-hosted runner luôn chạy `prepare`, `build`, `verify_publish`; với `public-api`, job `sign` cũng chạy trên GitHub-hosted runner.
-- Với mode mặc định `self-hosted`, NAS self-hosted runner chỉ dùng cho signing.
-- Không chạy Gradle build, test hoặc publish trên NAS.
+- GitHub-hosted runner chạy toàn bộ `prepare`, `build`, `sign`, `verify_publish`.
+- Job `sign` chỉ gọi public SigningServer; private key/keystore không rời signing infrastructure.
+- Release workflow không phụ thuộc NAS runner.
 - Client repo không copy release logic, chỉ cấu hình contract.
 
 ## Tài liệu chi tiết
@@ -70,7 +68,7 @@ jobs:
       bump: ${{ inputs.bump }}
       versionName: ${{ inputs.versionName }}
       dryRun: ${{ inputs.dryRun }}
-      # Optional. Default: self-hosted
+      # Optional. Default: public-api
       # signingMode: public-api
       # signingUrl: https://sign.synclab.com.vn
     secrets: inherit
@@ -90,14 +88,40 @@ versionCode = a * 100000000 + b * 1000000 + c * 10000 + d
 
 Example: `10.3.5.6 -> 1003050006`.
 
-## Signing modes
+## Artifact types
 
-Reusable Android release workflow hỗ trợ hai mode:
+Mỗi target trong `synclab-release.json` có thể khai báo:
 
-- `self-hosted` (mặc định): giữ nguyên flow hiện tại, job `sign` chạy trên NAS self-hosted runner và gọi `https://127.0.0.1:8443`.
-- `public-api`: job `sign` chạy trên `ubuntu-latest`, reuse composite action `command: sign` và gọi endpoint truyền qua `signingUrl` (mặc định `https://sign.synclab.com.vn`).
+```json
+{
+  "artifactType": "apk"
+}
+```
 
-Ví dụ caller sử dụng public API signing:
+hoặc:
+
+```json
+{
+  "artifactType": "aab"
+}
+```
+
+`artifactType` mặc định là `apk` để giữ backward compatibility. AAB signing dùng
+endpoint `POST /v1/sign/android/aab`, multipart field `aab`, và được verify bằng
+`jarsigner` + `bundletool` trước khi publish. Signed AAB targets phải khai báo
+`signing.expectedSignerSha256`; framework reject unsigned ZIP entries và verify
+certificate fingerprint bằng `keytool`, không chỉ dựa trên Subject DN.
+
+## Signing
+
+Reusable Android release workflow dùng public API signing:
+
+- `signingMode` mặc định là `public-api`.
+- Giá trị khác `public-api` bị reject sớm.
+- Job `sign` chạy trên `ubuntu-latest` và gọi `signingUrl`, mặc định `https://sign.synclab.com.vn`.
+- APK và AAB đều dùng cùng public signing boundary; signing key chỉ tồn tại trong SigningServer.
+
+Ví dụ caller:
 
 ```yaml
 jobs:

@@ -27,6 +27,14 @@ def _require_str(value: Any, name: str) -> str:
     return value
 
 
+def _normalize_sha256_fingerprint(value: Any, name: str) -> str:
+    raw = _require_str(value, name)
+    normalized = raw.replace(":", "").replace(" ", "").upper()
+    if len(normalized) != 64 or any(ch not in "0123456789ABCDEF" for ch in normalized):
+        raise ConfigError(f"{name} must be a SHA-256 certificate fingerprint")
+    return normalized
+
+
 def _require_bool(value: Any, name: str) -> bool:
     if not isinstance(value, bool):
         raise ConfigError(f"{name} must be a boolean")
@@ -86,12 +94,26 @@ def load_config(path: str | Path) -> ReleaseConfig:
     for name, target_raw in targets_raw.items():
         target = _require_dict(target_raw, f"targets.{name}")
         command = [_require_str(item, f"targets.{name}.buildCommand[]") for item in _require_list(target.get("buildCommand"), f"targets.{name}.buildCommand")]
+        artifact_type = _require_str(target.get("artifactType", "apk"), f"targets.{name}.artifactType")
+        if artifact_type not in {"apk", "aab"}:
+            raise ConfigError(f"targets.{name}.artifactType must be apk or aab")
         signing_raw = _require_dict(target.get("signing", {"enabled": False}), f"targets.{name}.signing")
         signing_enabled = _require_bool(signing_raw.get("enabled"), f"targets.{name}.signing.enabled")
+        expected_signer_sha256 = None
+        if signing_enabled and signing_raw.get("expectedSignerSha256") is not None:
+            expected_signer_sha256 = _normalize_sha256_fingerprint(
+                signing_raw.get("expectedSignerSha256"),
+                f"targets.{name}.signing.expectedSignerSha256",
+            )
+        if signing_enabled and artifact_type == "aab" and expected_signer_sha256 is None:
+            raise ConfigError(
+                f"targets.{name}.signing.expectedSignerSha256 is required for signed AAB targets"
+            )
         signing = SigningConfig(
             enabled=signing_enabled,
             profile=_require_str(signing_raw.get("profile"), f"targets.{name}.signing.profile") if signing_enabled else None,
             expected_signer_dn=_require_str(signing_raw.get("expectedSignerDn"), f"targets.{name}.signing.expectedSignerDn") if signing_enabled else None,
+            expected_signer_sha256=expected_signer_sha256,
         )
         targets[name] = TargetConfig(
             name=name,
@@ -99,6 +121,7 @@ def load_config(path: str | Path) -> ReleaseConfig:
             artifact_pattern=_require_str(target.get("artifactPattern"), f"targets.{name}.artifactPattern"),
             asset_name=_require_str(target.get("assetName"), f"targets.{name}.assetName"),
             signing=signing,
+            artifact_type=artifact_type,
         )
 
     for name in target_names:
