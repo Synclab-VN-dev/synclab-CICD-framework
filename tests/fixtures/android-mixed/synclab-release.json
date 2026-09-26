@@ -16,7 +16,7 @@
   "targets": {
     "release": {
       "artifactType": "apk",
-      "buildCommand": ["gradle", "--no-daemon", ":app:assembleRelease"],
+      "buildCommand": ["gradle", "--no-daemon", "--stacktrace", ":app:assembleRelease"],
       "artifactPattern": "app/build/outputs/apk/release/app-release-unsigned.apk",
       "assetName": "ci-fixture-{versionName}.apk",
       "signing": {
@@ -28,7 +28,7 @@
     },
     "play": {
       "artifactType": "aab",
-      "buildCommand": ["gradle", "--no-daemon", ":app:bundleRelease"],
+      "buildCommand": ["gradle", "--no-daemon", "--stacktrace", ":app:bundleRelease"],
       "artifactPattern": "app/build/outputs/bundle/release/app-release.aab",
       "assetName": "ci-fixture-{versionName}.aab",
       "signing": {
