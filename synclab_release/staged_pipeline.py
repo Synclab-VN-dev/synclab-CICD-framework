@@ -19,7 +19,7 @@ from .signing_client import api_key_for_profile, sign_android_artifact
 from .version_resolver import resolve_version
 
 
-LOCAL_SIGNING_URL = "https://127.0.0.1:8443"
+DEFAULT_SIGNING_URL = "https://sign.synclab.com.vn"
 
 
 def _plan_path(output_dir: Path) -> Path:
@@ -49,7 +49,7 @@ def _tag_for(config: ReleaseConfig, version_name: str) -> str:
 
 
 def _signing_url(config: ReleaseConfig) -> str:
-    return os.getenv(config.signing_service.url_env) or LOCAL_SIGNING_URL
+    return os.getenv(config.signing_service.url_env) or DEFAULT_SIGNING_URL
 
 
 def release_plan_requires_bundletool(plan_file: Path) -> bool:
@@ -58,14 +58,9 @@ def release_plan_requires_bundletool(plan_file: Path) -> bool:
 
 
 def validate_signing_mode_for_plan(plan_file: Path, signing_mode: str) -> None:
-    if signing_mode not in {"self-hosted", "public-api"}:
-        raise PreflightError(f"Unsupported signingMode: {signing_mode}")
-    if signing_mode != "self-hosted":
-        return
-    plan = _read_json(plan_file)
-    blocked = [target.get("name", "<unknown>") for target in plan.get("targets", []) if target.get("artifactType") == "aab" and target.get("signingEnabled")]
-    if blocked:
-        raise PreflightError("AAB signing currently requires signingMode=public-api; " f"self-hosted AAB target(s): {', '.join(blocked)}")
+    del plan_file
+    if signing_mode != "public-api":
+        raise PreflightError(f"Unsupported signingMode: {signing_mode}; only public-api is supported")
 
 
 def _debug_tree(path: Path, output: Path) -> None:

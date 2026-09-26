@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from synclab_release.errors import SignError
+from synclab_release.errors import PreflightError, SignError
 from synclab_release.staged_pipeline import (
     build_stage,
     prepare_stage,
@@ -255,7 +255,9 @@ class StagedMixedPipelineTest(unittest.TestCase):
             )
             self.assertFalse(release_plan_requires_bundletool(apk_plan))
             self.assertTrue(release_plan_requires_bundletool(mixed_plan))
-            validate_signing_mode_for_plan(apk_plan, "self-hosted")
+            with self.assertRaises(PreflightError):
+                validate_signing_mode_for_plan(apk_plan, "self-hosted")
+            validate_signing_mode_for_plan(apk_plan, "public-api")
             validate_signing_mode_for_plan(mixed_plan, "public-api")
 
 

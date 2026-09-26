@@ -29,10 +29,10 @@ prepare -> build -> sign -> verify_publish
 
 - `prepare`: chạy trên GitHub-hosted runner, đọc `synclab-release.json`, đọc version hiện tại từ Gradle, tính version mới, sinh `release-plan.json`.
 - `build`: chạy trên GitHub-hosted runner, update version local theo release plan, build Android artifacts theo `artifactType` (`apk` hoặc `aab`), upload artifact trung gian.
-- `sign`: hỗ trợ hai mode. `self-hosted` chạy trên NAS runner `synclab-signing` và gọi local signing service tại `https://127.0.0.1:8443`; `public-api` chạy trên `ubuntu-latest`, reuse framework `command: sign` và gọi endpoint public được cấu hình qua `signingUrl`.
+- `sign`: chạy trên `ubuntu-latest`, reuse framework `command: sign` và gọi public SigningServer qua `signingUrl`.
 - `verify_publish`: chạy trên GitHub-hosted runner, verify version/signature, tạo checksum/metadata, và publish GitHub Release nếu `dryRun=false`.
 
-Mode mặc định là `self-hosted` để giữ backward compatibility cho các caller hiện tại như Batmon.
+Signing mode mặc định và duy nhất được hỗ trợ là `public-api`.
 
 ## 2. Workflow inputs và secrets
 
@@ -50,7 +50,7 @@ Inputs:
 | `bump` | No | `d` | `a`, `b`, `c`, `d` | Auto bump level khi không truyền `versionName`. |
 | `versionName` | No | empty | Format `a.b.c.d` | Manual version override. Nếu có giá trị thì framework không auto bump. |
 | `dryRun` | No | `true` | `true`, `false` | `true` thì build/sign/verify nhưng không commit, tag, publish release. |
-| `signingMode` | No | `self-hosted` | `self-hosted`, `public-api` | Chọn backend/runner cho signing job. |
+| `signingMode` | No | `public-api` | `public-api` | Public SigningServer mode; giá trị khác bị reject sớm. |
 | `signingUrl` | No | `https://sign.synclab.com.vn` | HTTPS URL | Endpoint dùng khi `signingMode=public-api`. |
 
 Secrets cần khai báo ở từng client repo và truyền qua `secrets: inherit`:
@@ -75,8 +75,8 @@ Khi client thêm secret mới cho build, chỉ cần thêm repo secret và tham 
 
 Runner requirement:
 
-- `self-hosted`: dùng `[self-hosted, linux, x64, synclab-signing]`. Org runner phải được allow cho caller repo.
-- `public-api`: dùng GitHub-hosted `ubuntu-latest`; phù hợp cho caller repo có quyền truy cập framework nhưng không có hoặc không muốn phụ thuộc shared signing runner.
+- Release workflow dùng GitHub-hosted runner cho cả build/sign/verify.
+- Job `sign` gọi public SigningServer; không cần shared NAS runner.
 
 Ví dụ public signing:
 
@@ -95,9 +95,9 @@ jobs:
       RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
 ```
 
-Public signing mode không thay đổi GitHub repository access policy. Caller vẫn phải có quyền truy cập repository chứa reusable workflow.
+Public API signing không thay đổi GitHub repository access policy. Caller vẫn phải có quyền truy cập repository chứa reusable workflow.
 
-Với `public-api`, caller vẫn cấu hình `signingService.tlsVerify` trong `synclab-release.json` và dùng các secret `SYNCLAB_SIGNING_API_KEY_PREVIEW/PROD` như hiện tại.
+Caller cấu hình `signingService.tlsVerify` trong `synclab-release.json` và dùng các secret `SYNCLAB_SIGNING_API_KEY_PREVIEW/PROD` như hiện tại.
 
 ## 3. Version rule
 
@@ -228,7 +228,7 @@ Ví dụ đầy đủ:
 | `schemaVersion` | Yes | number | Hiện tại chỉ support `1`. |
 | `project` | Yes | object | Project metadata. |
 | `version` | Yes | object | Nơi framework đọc và update version. |
-| `signingService` | No | object | Config signing service legacy/CLI. Production reusable workflow dùng local endpoint trên NAS. |
+| `signingService` | No | object | Cấu hình public SigningServer endpoint/TLS cho signing stage. |
 | `bundle` | Yes | object | Nhóm target release. |
 | `targets` | Yes | object | Khai báo từng build target. |
 | `githubRelease` | Yes | object | Tag/name/prerelease của GitHub Release. |
@@ -261,17 +261,15 @@ hoặc cú pháp tương đương mà parser của framework đang support trong
 
 | Field | Required | Type | Default | Ghi chú |
 | --- | --- | --- | --- | --- |
-| `urlEnv` | No | string | `SYNCLAB_SIGNING_URL` | Dùng cho CLI/preflight legacy. |
-| `requiresTailscale` | No | boolean | `false` | Production CI/CD không dùng Tailscale cho signing path. |
-| `tlsVerify` | No | boolean | `false` | Self-signed cert trên NAS nên mặc định false. |
+| `urlEnv` | No | string | `SYNCLAB_SIGNING_URL` | Env override cho public SigningServer URL. |
+| `requiresTailscale` | No | boolean | `false` | Public signing path không yêu cầu Tailscale. |
+| `tlsVerify` | No | boolean | `false` | Bật `true` cho production public endpoint để verify TLS certificate. |
 
-Trong reusable workflow production, job `sign` gọi trực tiếp:
+Nếu env URL không được set, staged signing mặc định dùng:
 
 ```text
-https://127.0.0.1:8443
+https://sign.synclab.com.vn
 ```
-
-Endpoint này chỉ có ý nghĩa bên trong NAS self-hosted runner container dùng host network.
 
 ### `bundle`
 
@@ -310,7 +308,7 @@ Endpoint này chỉ có ý nghĩa bên trong NAS self-hosted runner container d�
 
 AAB verification chạy `jarsigner -verify` và thêm strict check để reject unsigned entries. Strict code `4` được chấp nhận cho certificate self-signed/untrusted chain hiện tại; các strict warning code khác bị reject. Certificate identity của AAB được xác nhận thêm bằng `keytool -printcert -jarfile` + SHA-256 fingerprint.
 
-Signed AAB hiện chỉ hỗ trợ `signingMode=public-api`; reusable workflow fail sớm nếu release plan có signed AAB nhưng caller chọn `self-hosted`.
+APK và AAB đều dùng `signingMode=public-api`; reusable workflow reject mọi signing mode khác.
 
 Khuyến nghị target:
 
@@ -409,8 +407,8 @@ HTTP_CODE=403
 
 - `401`: secret sai hoặc missing.
 - `403`: API key đúng nhưng không được phép dùng profile đó.
-- Job queued lâu: NAS runner offline, label sai, hoặc repo chưa được allow runner group.
-- Job sign fail health check: signing service trên NAS chưa chạy hoặc runner container không gọi được `https://127.0.0.1:8443`.
+- `401`: kiểm tra API key/profile permission.
+- Lỗi network/TLS: kiểm tra `signingUrl`, DNS và `signingService.tlsVerify`.
 
 Lỗi verify/publish:
 
@@ -435,7 +433,7 @@ Test lần đầu trên client repo:
 
 1. Chạy workflow với `dryRun=true`.
 2. Xác nhận `prepare`, `build`, `sign`, `verify_publish` đều pass.
-3. Xác nhận job `sign` chạy trên runner `nas5cb6ad-signing-01` hoặc runner Synclab có label `synclab-signing`.
+3. Xác nhận job `sign` chạy trên GitHub-hosted runner và gọi public SigningServer.
 4. Download `final-artifacts`.
 5. Verify `checksum.sha256`.
 6. Verify signer DN của prerelease/release APK bằng `apksigner`.
@@ -457,7 +455,7 @@ Production release:
 ## 8. Ship release sang repo khác
 
 Ship workflow dùng để copy một release đã publish từ source repo sang target repo.
-Flow này không build lại, không ký lại APK và không dùng NAS self-hosted runner.
+Flow này không build lại và không ký lại APK.
 Source repo và target repo có thể nằm khác org, miễn token có quyền với cả hai repo.
 
 Reusable workflow:

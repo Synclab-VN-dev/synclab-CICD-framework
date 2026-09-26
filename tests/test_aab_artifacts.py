@@ -219,10 +219,10 @@ class AabArtifactTest(unittest.TestCase):
             with self.assertRaises(VerifyError):
                 verify_aab_version(Path("."), Path("app.aab"), GradleVersion("18.0.0.1", 1800000001))
 
-    def test_self_hosted_mode_rejects_signed_aab_early(self):
+    def test_self_hosted_mode_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             plan = Path(temp) / "release-plan.json"
-            plan.write_text(json.dumps({"targets": [{"name": "play", "artifactType": "aab", "signingEnabled": True}]}), encoding="utf-8")
+            plan.write_text(json.dumps({"targets": [{"name": "release", "artifactType": "apk", "signingEnabled": True}]}), encoding="utf-8")
             with self.assertRaises(PreflightError):
                 validate_signing_mode_for_plan(plan, "self-hosted")
 
