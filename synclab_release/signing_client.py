@@ -47,6 +47,8 @@ def sign_apk(
         headers={
             "X-Synclab-Api-Key": api_key,
             "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "User-Agent": "Synclab-CICD/1.0",
+            "Accept": "application/vnd.android.package-archive",
         },
         method="POST",
     )

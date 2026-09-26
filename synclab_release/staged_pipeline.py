@@ -162,9 +162,6 @@ def sign_stage(
     signing_url = _signing_url(config)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    health = _http_get_json_or_text(f"{signing_url.rstrip('/')}/health", tls_verify=config.signing_service.tls_verify)
-    (output_dir / "signing-health.json").write_text(health + "\n", encoding="utf-8")
-
     target_names = targets or config.bundle_targets
     unknown_targets = sorted(set(target_names) - set(config.bundle_targets))
     if unknown_targets:

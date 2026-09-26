@@ -23,13 +23,19 @@ on:
         required: false
         type: string
         default: v1.0.2
+      signingMode:
+        required: false
+        type: string
+        default: self-hosted
+      signingUrl:
+        required: false
+        type: string
+        default: https://sign.synclab.com.vn
     secrets:
       SYNCLAB_SIGNING_API_KEY_PREVIEW:
-        required: true
+        required: false
       SYNCLAB_SIGNING_API_KEY_PROD:
-        required: true
-      RELEASE_GH_TOKEN:
-        required: true
+        required: false
 
 permissions:
   contents: write
@@ -45,6 +51,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate signing mode
+        env:
+          SIGNING_MODE: ${{ inputs.signingMode }}
+        run: |
+          case "$SIGNING_MODE" in
+            self-hosted|public-api) ;;
+            *)
+              echo "Unsupported signingMode: $SIGNING_MODE" >&2
+              exit 1
+              ;;
+          esac
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -56,7 +74,6 @@ jobs:
           repository: Synclab-VN-dev/synclab-CICD-framework
           ref: ${{ inputs.frameworkRef }}
           path: .synclab-cicd-framework
-          token: ${{ secrets.RELEASE_GH_TOKEN }}
 
       - name: Prepare release plan
         uses: ./.synclab-cicd-framework
@@ -91,6 +108,11 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ""
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -108,7 +130,6 @@ jobs:
           repository: Synclab-VN-dev/synclab-CICD-framework
           ref: ${{ inputs.frameworkRef }}
           path: .synclab-cicd-framework
-          token: ${{ secrets.RELEASE_GH_TOKEN }}
 
       - name: Build unsigned APKs
         uses: ./.synclab-cicd-framework
@@ -143,15 +164,56 @@ jobs:
 
   sign:
     needs: build
-    runs-on: [self-hosted, linux, x64, synclab-signing]
+    runs-on: ${{ fromJSON(inputs.signingMode == 'public-api' && '"ubuntu-latest"' || '["self-hosted","linux","x64","synclab-signing"]') }}
     steps:
+      - name: Checkout caller repository
+        if: ${{ inputs.signingMode == 'public-api' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        if: ${{ inputs.signingMode == 'public-api' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download release plan
+        if: ${{ inputs.signingMode == 'public-api' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: release-plan
+          path: synclab-release-plan
+
+      - name: Checkout framework action
+        if: ${{ inputs.signingMode == 'public-api' }}
+        uses: actions/checkout@v4
+        with:
+          repository: Synclab-VN-dev/synclab-CICD-framework
+          ref: ${{ inputs.frameworkRef }}
+          path: .synclab-cicd-framework
+
       - name: Download unsigned APKs
         uses: actions/download-artifact@v4
         with:
           name: unsigned-apks
           path: synclab-unsigned-apks
 
+      - name: Sign APKs through public API
+        if: ${{ inputs.signingMode == 'public-api' }}
+        uses: ./.synclab-cicd-framework
+        env:
+          SYNCLAB_SIGNING_URL: ${{ inputs.signingUrl }}
+          SYNCLAB_SIGNING_API_KEY_PREVIEW: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PREVIEW }}
+          SYNCLAB_SIGNING_API_KEY_PROD: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PROD }}
+        with:
+          command: sign
+          plan-file: synclab-release-plan/release-plan.json
+          unsigned-dir: synclab-unsigned-apks
+          output-dir: synclab-signed-apks
+
       - name: Sign APKs on NAS
+        if: ${{ inputs.signingMode == 'self-hosted' }}
         env:
           SYNCLAB_SIGNING_API_KEY_PREVIEW: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PREVIEW }}
           SYNCLAB_SIGNING_API_KEY_PROD: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PROD }}
@@ -241,7 +303,6 @@ jobs:
           repository: Synclab-VN-dev/synclab-CICD-framework
           ref: ${{ inputs.frameworkRef }}
           path: .synclab-cicd-framework
-          token: ${{ secrets.RELEASE_GH_TOKEN }}
 
       - name: Download release plan
         uses: actions/download-artifact@v4
@@ -259,7 +320,6 @@ jobs:
         uses: ./.synclab-cicd-framework
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
         with:
           command: verify-publish
           dry-run: ${{ inputs.dryRun }}
