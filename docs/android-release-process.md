@@ -57,9 +57,10 @@ Secrets cần khai báo ở từng client repo và truyền qua `secrets: inheri
 
 | Secret | Required | Ý nghĩa |
 | --- | --- | --- |
-| `SYNCLAB_SIGNING_API_KEY_PREVIEW` | Yes | API key được phép ký profile `preview`. |
-| `SYNCLAB_SIGNING_API_KEY_PROD` | Yes | API key được phép ký profile `prod`. |
-| `RELEASE_GH_TOKEN` | Yes | Token publish release. |
+| `SYNCLAB_SIGNING_API_KEY_PREVIEW` | Khi bundle có target dùng `preview` | API key được phép ký profile `preview`. |
+| `SYNCLAB_SIGNING_API_KEY_PROD` | Khi bundle có target dùng `prod` | API key được phép ký profile `prod`. |
+
+Android release workflow publish bằng `github.token`; không cần `RELEASE_GH_TOKEN`. Secret này chỉ còn cần cho ship workflow/cross-repo ở mục 8.
 
 Các secret khác là build-command secret do client tự định nghĩa trong
 `synclab-release.json` bằng placeholder `{{secret.NAME}}`. Ví dụ Batmon dùng:
@@ -92,7 +93,6 @@ jobs:
     secrets:
       SYNCLAB_SIGNING_API_KEY_PREVIEW: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PREVIEW }}
       SYNCLAB_SIGNING_API_KEY_PROD: ${{ secrets.SYNCLAB_SIGNING_API_KEY_PROD }}
-      RELEASE_GH_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
 ```
 
 Public API signing không thay đổi GitHub repository access policy. Caller vẫn phải có quyền truy cập repository chứa reusable workflow.
