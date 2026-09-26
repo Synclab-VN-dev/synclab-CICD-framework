@@ -27,10 +27,8 @@ fi
 
 cp -R "$ROOT/tests/fixtures/android-mixed" "$APP"
 
-keytool -genkeypair   -alias synclab-ci   -keyalg RSA   -keysize 2048   -validity 3650   -dname "CN=Synclab CI, OU=CI, O=Synclab, C=VN"   -keystore "$TMP/ci.p12"   -storetype PKCS12   -storepass changeit   -keypass changeit   >/dev/null 2>&1
-
-FP="$(keytool -list -v   -keystore "$TMP/ci.p12"   -storetype PKCS12   -storepass changeit   -alias synclab-ci |
-  sed -n 's/.*SHA256: //p' | head -1 | tr -d ':[:space:]')"
+keytool -genkeypair -alias synclab-ci -keyalg RSA -keysize 2048 -validity 3650 -dname "CN=Synclab CI, OU=CI, O=Synclab, C=VN" -keystore "$TMP/ci.p12" -storetype PKCS12 -storepass changeit -keypass changeit >/dev/null 2>&1
+FP="$(keytool -list -v -keystore "$TMP/ci.p12" -storetype PKCS12 -storepass changeit -alias synclab-ci | sed -n 's/.*SHA256: //p' | head -1 | tr -d ':[:space:]')"
 
 python - "$APP/synclab-release.json" "$FP" <<'PY'
 import sys
@@ -48,11 +46,11 @@ s.close()
 PY
 )"
 
-python "$ROOT/tests/isolated_signing_server.py"   --port "$PORT"   --keystore "$TMP/ci.p12"   --alias synclab-ci   --password changeit   --records "$RECORDS"   >"$TMP/signing-server.log" 2>&1 &
+python "$ROOT/tests/isolated_signing_server.py" --port "$PORT" --keystore "$TMP/ci.p12" --alias synclab-ci --password changeit --records "$RECORDS" >"$TMP/signing-server.log" 2>&1 &
 SERVER_PID="$!"
 
 for _ in $(seq 1 50); do
-  if curl -fsS -H "X-Synclab-Api-Key: ci-secret" "http://127.0.0.1:$PORT/v1/profiles" >/dev/null; then
+  if curl -fsS -H "X-Synclab-Api-Key: ci-secret" "http://127.0.0.1:$PORT/v1/profiles" >/dev/null 2>&1; then
     break
   fi
   sleep 0.1
@@ -66,7 +64,7 @@ export GITHUB_SHA="ci-head-sha"
 export GITHUB_RUN_ID="9001"
 export PYTHONPATH="$ROOT"
 
-python -m synclab_release.main prepare   --repo-root "$APP"   --config-file synclab-release.json   --bump d   --dry-run   --output-dir "$PLAN"
+python -m synclab_release.main prepare --repo-root "$APP" --config-file synclab-release.json --bump d --dry-run --output-dir "$PLAN"
 
 python - "$PLAN/release-plan.json" <<'PY'
 import json
@@ -75,14 +73,16 @@ from pathlib import Path
 plan = json.loads(Path(sys.argv[1]).read_text())
 assert plan["versionName"] == "1.0.0.1"
 assert plan["versionCode"] == 100000001
-assert [(x["name"], x["artifactType"]) for x in plan["targets"]] == [
-    ("release", "apk"),
-    ("play", "aab"),
-]
+assert [(x["name"], x["artifactType"]) for x in plan["targets"]] == [("release", "apk"), ("play", "aab")]
 print("PASS: prepare produced mixed APK/AAB release plan")
 PY
 
-python -m synclab_release.main build   --repo-root "$APP"   --plan-file "$PLAN/release-plan.json"   --output-dir "$UNSIGNED"
+if ! python -m synclab_release.main build --repo-root "$APP" --plan-file "$PLAN/release-plan.json" --output-dir "$UNSIGNED"; then
+  echo "=== Gradle fixture build logs ===" >&2
+  find "$APP/synclab-release-artifacts" -maxdepth 1 -type f -name '*-build.log' -print -exec cat {} \; >&2 || true
+  echo "=== End Gradle fixture build logs ===" >&2
+  exit 1
+fi
 
 test -s "$UNSIGNED/release.apk"
 test -s "$UNSIGNED/play.aab"
@@ -96,12 +96,12 @@ if ! jarsigner -verify -verbose -certs "$UNSIGNED/play.aab" 2>&1 | grep -qi "jar
 fi
 echo "PASS: real Gradle APK/AAB build produced unsigned artifacts"
 
-python -m synclab_release.main sign   --repo-root "$APP"   --plan-file "$PLAN/release-plan.json"   --unsigned-dir "$UNSIGNED"   --output-dir "$SIGNED"   --require-unsigned-check
+python -m synclab_release.main sign --repo-root "$APP" --plan-file "$PLAN/release-plan.json" --unsigned-dir "$UNSIGNED" --output-dir "$SIGNED" --require-unsigned-check
 
 test -s "$SIGNED/release-signed.apk"
 test -s "$SIGNED/play-signed.aab"
 
-python -m synclab_release.main verify-publish   --repo-root "$APP"   --plan-file "$PLAN/release-plan.json"   --signed-dir "$SIGNED"   --output-dir "$FINAL"   --dry-run
+python -m synclab_release.main verify-publish --repo-root "$APP" --plan-file "$PLAN/release-plan.json" --signed-dir "$SIGNED" --output-dir "$FINAL" --dry-run
 
 python - "$RECORDS" "$FINAL" <<'PY'
 import json
@@ -129,10 +129,7 @@ assert (final / "checksum.sha256").is_file()
 print("PASS: HTTP signing contract, final extensions, metadata and mixed artifacts verified")
 PY
 
-(
-  cd "$FINAL"
-  sha256sum -c checksum.sha256
-)
+(cd "$FINAL" && sha256sum -c checksum.sha256)
 echo "PASS: final checksum.sha256 verified"
 
 cp "$APP/synclab-release.json" "$TMP/config-good.json"
@@ -145,7 +142,7 @@ data = json.loads(path.read_text())
 data["targets"]["play"]["signing"]["expectedSignerSha256"] = "B2" * 32
 path.write_text(json.dumps(data, indent=2) + "\n")
 PY
-if python -m synclab_release.main verify-publish   --repo-root "$APP"   --plan-file "$PLAN/release-plan.json"   --signed-dir "$SIGNED"   --output-dir "$TMP/final-wrong-fp"   --dry-run; then
+if python -m synclab_release.main verify-publish --repo-root "$APP" --plan-file "$PLAN/release-plan.json" --signed-dir "$SIGNED" --output-dir "$TMP/final-wrong-fp" --dry-run; then
   echo "FAIL: signer fingerprint mismatch was accepted" >&2
   exit 1
 fi
@@ -154,11 +151,8 @@ echo "PASS: full verify-publish rejects signer fingerprint mismatch"
 
 cp "$SIGNED/play-signed.aab" "$TMP/play-good.aab"
 printf 'post-sign tamper\n' > "$TMP/tampered-after-sign.txt"
-(
-  cd "$TMP"
-  zip -q "$SIGNED/play-signed.aab" tampered-after-sign.txt
-)
-if python -m synclab_release.main verify-publish   --repo-root "$APP"   --plan-file "$PLAN/release-plan.json"   --signed-dir "$SIGNED"   --output-dir "$TMP/final-tampered"   --dry-run; then
+(cd "$TMP" && zip -q "$SIGNED/play-signed.aab" tampered-after-sign.txt)
+if python -m synclab_release.main verify-publish --repo-root "$APP" --plan-file "$PLAN/release-plan.json" --signed-dir "$SIGNED" --output-dir "$TMP/final-tampered" --dry-run; then
   echo "FAIL: post-sign unsigned AAB entry was accepted" >&2
   exit 1
 fi
