@@ -1,8 +1,10 @@
 import tempfile
+import urllib.error
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from synclab_release.errors import SignError
 from synclab_release.preflight import _http_get_json_or_text
 from synclab_release.signing_client import sign_apk
 
